@@ -1,0 +1,631 @@
+const BioSyncAdvanced = () => {
+  // Core state management
+  const [isExercising, setIsExercising] = useState(false);
+  const [exerciseType, setExerciseType] = useState('running');
+  const [exerciseDuration, setExerciseDuration] = useState(0);
+  const [showOnboarding, setShowOnboarding] = useState(true);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  
+  // User profile state
+  const [userProfile, setUserProfile] = useState({
+    name: 'Alex Runner',
+    age: 28,
+    weight: 70,
+    height: 175,
+    fitnessLevel: 'intermediate',
+    sweatRate: 'moderate',
+    goals: ['endurance', 'performance']
+  });
+
+  // Biometric data state
+  const [biometrics, setBiometrics] = useState({
+    heartRate: 72,
+    heartRateZone: 'rest',
+    sweatRate: 0,
+    coreTemp: 37.0,
+    hydrationLevel: 100,
+    electrolyteBalance: {
+      sodium: 140,
+      potassium: 4.0,
+      magnesium: 1.8
+    },
+    glycogenStores: 100,
+    fatigue: 0,
+    vo2Max: 45
+  });
+
+  // Environmental conditions
+  const [environment, setEnvironment] = useState({
+    temperature: 22,
+    humidity: 50,
+    altitude: 0,
+    airQuality: 85
+  });
+
+  // Nutrition tracking
+  const [nutritionLog, setNutritionLog] = useState([]);
+  const [recommendations, setRecommendations] = useState([]);
+  const [alerts, setAlerts] = useState([]);
+  const [performanceMetrics, setPerformanceMetrics] = useState([]);
+
+  // Historical data for charts
+  const [historicalData, setHistoricalData] = useState([]);
+  const intervalRef = useRef(null);
+
+  // Exercise simulation engine
+  useEffect(() => {
+    if (isExercising) {
+      intervalRef.current = setInterval(() => {
+        setExerciseDuration(prev => prev + 1);
+        updateBiometrics();
+        generateRecommendations();
+        checkForAlerts();
+        updatePerformanceMetrics();
+      }, 1000);
+    } else {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        recoverBiometrics();
+      }
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [isExercising, exerciseType]);
+
+  // Advanced biometric simulation
+  const updateBiometrics = () => {
+    setBiometrics(prev => {
+      // Heart rate modeling based on exercise intensity
+      const intensityMultiplier = {
+        running: 2.2,
+        cycling: 1.8,
+        swimming: 2.0,
+        strength: 1.5,
+        yoga: 1.2
+      }[exerciseType];
+
+      const baseHR = 72;
+      const maxHR = 220 - userProfile.age;
+      const targetHR = Math.min(baseHR + (exerciseDuration * intensityMultiplier), maxHR * 0.85);
+      const newHR = prev.heartRate + (targetHR - prev.heartRate) * 0.1;
+
+      // Heart rate zone calculation
+      const hrPercentage = ((newHR - baseHR) / (maxHR - baseHR)) * 100;
+      let zone = 'rest';
+      if (hrPercentage > 80) zone = 'peak';
+      else if (hrPercentage > 70) zone = 'cardio';
+      else if (hrPercentage > 60) zone = 'aerobic';
+      else if (hrPercentage > 50) zone = 'fat-burn';
+      else if (hrPercentage > 0) zone = 'warm-up';
+
+      // Sweat rate calculation (L/hour)
+      const tempFactor = 1 + (environment.temperature - 20) * 0.02;
+      const humidityFactor = 1 + (environment.humidity - 50) * 0.01;
+      const intensityFactor = hrPercentage / 100;
+      const newSweatRate = 0.5 * intensityFactor * tempFactor * humidityFactor;
+
+      // Core temperature simulation
+      const tempIncrease = intensityFactor * 0.02;
+      const newCoreTemp = Math.min(prev.coreTemp + tempIncrease, 39.5);
+
+      // Hydration and electrolyte depletion
+      const fluidLoss = newSweatRate / 3600; // per second
+      const newHydration = Math.max(prev.hydrationLevel - fluidLoss * 2, 0);
+      
+      // Electrolyte loss modeling
+      const sodiumLoss = fluidLoss * 1000; // mg per L
+      const potassiumLoss = fluidLoss * 200;
+      const magnesiumLoss = fluidLoss * 20;
+
+      // Glycogen depletion based on intensity
+      const glycogenBurnRate = intensityFactor * 0.05;
+      const newGlycogen = Math.max(prev.glycogenStores - glycogenBurnRate, 0);
+
+      // Fatigue accumulation
+      const fatigueRate = intensityFactor * 0.03;
+      const newFatigue = Math.min(prev.fatigue + fatigueRate, 100);
+
+      // Update historical data
+      setHistoricalData(prevHistory => {
+        const newEntry = {
+          time: exerciseDuration,
+          heartRate: Math.round(newHR),
+          hydration: Math.round(newHydration),
+          glycogen: Math.round(newGlycogen),
+          fatigue: Math.round(newFatigue),
+          sweatRate: newSweatRate.toFixed(2)
+        };
+        return [...prevHistory.slice(-59), newEntry];
+      });
+
+      return {
+        heartRate: Math.round(newHR),
+        heartRateZone: zone,
+        sweatRate: newSweatRate,
+        coreTemp: newCoreTemp,
+        hydrationLevel: newHydration,
+        electrolyteBalance: {
+          sodium: Math.max(prev.electrolyteBalance.sodium - sodiumLoss, 125),
+          potassium: Math.max(prev.electrolyteBalance.potassium - potassiumLoss, 3.0),
+          magnesium: Math.max(prev.electrolyteBalance.magnesium - magnesiumLoss, 1.2)
+        },
+        glycogenStores: newGlycogen,
+        fatigue: newFatigue,
+        vo2Max: prev.vo2Max
+      };
+    });
+  };
+
+  // Recovery simulation
+  const recoverBiometrics = () => {
+    const recoveryInterval = setInterval(() => {
+      setBiometrics(prev => {
+        const isRecovered = 
+          prev.heartRate <= 75 &&
+          prev.coreTemp <= 37.2 &&
+          prev.fatigue <= 5;
+
+        if (isRecovered) {
+          clearInterval(recoveryInterval);
+          return prev;
+        }
+
+        return {
+          ...prev,
+          heartRate: Math.max(prev.heartRate - 2, 72),
+          coreTemp: Math.max(prev.coreTemp - 0.05, 37.0),
+          fatigue: Math.max(prev.fatigue - 1, 0),
+          heartRateZone: prev.heartRate <= 90 ? 'rest' : prev.heartRateZone
+        };
+      });
+    }, 1000);
+  };
+
+  // AI-powered recommendation engine
+  const generateRecommendations = () => {
+    const recs = [];
+    const time = new Date().toLocaleTimeString();
+
+    // Hydration recommendations
+    if (biometrics.hydrationLevel < 85) {
+      const waterNeeded = Math.round((100 - biometrics.hydrationLevel) * userProfile.weight * 0.01 * 1000);
+      recs.push({
+        id: Date.now() + 1,
+        type: 'hydration',
+        priority: 'high',
+        title: 'Hydration Alert',
+        message: `Drink ${waterNeeded}ml water immediately`,
+        timing: 'Now',
+        icon: Droplets,
+        color: 'text-blue-500',
+        bgColor: 'bg-blue-50',
+        borderColor: 'border-blue-200'
+      });
+    }
+
+    // Electrolyte recommendations
+    if (biometrics.electrolyteBalance.sodium < 135) {
+      recs.push({
+        id: Date.now() + 2,
+        type: 'electrolyte',
+        priority: 'high',
+        title: 'Electrolyte Imbalance',
+        message: `Add 0.5g salt to next drink`,
+        timing: 'Within 5 min',
+        icon: Zap,
+        color: 'text-yellow-500',
+        bgColor: 'bg-yellow-50',
+        borderColor: 'border-yellow-200'
+      });
+    }
+
+    // Energy recommendations
+    if (biometrics.glycogenStores < 30 && exerciseDuration > 3600) {
+      recs.push({
+        id: Date.now() + 3,
+        type: 'energy',
+        priority: 'medium',
+        title: 'Energy Depletion',
+        message: `Consume 30g fast carbs`,
+        timing: 'Next 10 min',
+        icon: Activity,
+        color: 'text-orange-500',
+        bgColor: 'bg-orange-50',
+        borderColor: 'border-orange-200'
+      });
+    }
+
+    // Temperature management
+    if (biometrics.coreTemp > 38.5) {
+      recs.push({
+        id: Date.now() + 4,
+        type: 'cooling',
+        priority: 'high',
+        title: 'Overheating Risk',
+        message: `Reduce intensity and cool down`,
+        timing: 'Immediately',
+        icon: Thermometer,
+        color: 'text-red-500',
+        bgColor: 'bg-red-50',
+        borderColor: 'border-red-200'
+      });
+    }
+
+    setRecommendations(recs);
+  };
+
+  // Alert system
+  const checkForAlerts = () => {
+    const newAlerts = [];
+
+    if (biometrics.heartRate > (220 - userProfile.age) * 0.9) {
+      newAlerts.push({
+        id: Date.now() + 1,
+        severity: 'critical',
+        message: 'Heart rate approaching maximum safe limit'
+      });
+    }
+
+    if (biometrics.hydrationLevel < 70) {
+      newAlerts.push({
+        id: Date.now() + 2,
+        severity: 'warning',
+        message: 'Dehydration risk - performance declining'
+      });
+    }
+
+    if (newAlerts.length > 0) {
+      setAlerts(prev => [...newAlerts, ...prev].slice(0, 5));
+    }
+  };
+
+  // Performance metrics calculation
+  const updatePerformanceMetrics = () => {
+    const efficiency = (biometrics.glycogenStores / 100) * (biometrics.hydrationLevel / 100) * (1 - biometrics.fatigue / 100);
+    const powerOutput = efficiency * biometrics.heartRate / 72;
+    
+    setPerformanceMetrics(prev => {
+      const newMetric = {
+        time: exerciseDuration,
+        efficiency: efficiency * 100,
+        powerOutput: powerOutput * 100,
+        recoveryTime: Math.round(biometrics.fatigue * 0.6)
+      };
+      return [...prev.slice(-29), newMetric];
+    });
+  };
+
+  // Onboarding component
+  const OnboardingScreen = () => (
+    <div className="fixed inset-0 bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 flex items-center justify-center z-50 overflow-auto">
+      <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 max-w-2xl mx-4 my-8 border border-white/20">
+        <h1 className="text-4xl font-bold text-white mb-4">Welcome to BioSync</h1>
+        <p className="text-white/80 text-lg mb-8">
+          Revolutionary AI-powered nutrition optimization that monitors your body in real-time and tells you exactly what to consume for peak performance.
+        </p>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <div className="bg-white/10 rounded-xl p-4 border border-white/20">
+            <Brain className="w-8 h-8 text-blue-400 mb-2" />
+            <h3 className="text-white font-semibold mb-1">AI-Powered</h3>
+            <p className="text-white/70 text-sm">Machine learning adapts to your unique physiology</p>
+          </div>
+          <div className="bg-white/10 rounded-xl p-4 border border-white/20">
+            <Activity className="w-8 h-8 text-green-400 mb-2" />
+            <h3 className="text-white font-semibold mb-1">Real-Time</h3>
+            <p className="text-white/70 text-sm">Continuous monitoring and instant recommendations</p>
+          </div>
+          <div className="bg-white/10 rounded-xl p-4 border border-white/20">
+            <TrendingUp className="w-8 h-8 text-purple-400 mb-2" />
+            <h3 className="text-white font-semibold mb-1">Performance</h3>
+            <p className="text-white/70 text-sm">Optimize nutrition for maximum results</p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setShowOnboarding(false)}
+          className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold py-4 rounded-xl hover:from-blue-600 hover:to-purple-600 transition-all transform hover:scale-105"
+        >
+          Start Demo
+        </button>
+      </div>
+    </div>
+  );
+
+  // Main dashboard
+  const Dashboard = () => (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Biometric Cards */}
+      <div className="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4">
+        <BiometricCard
+          title="Heart Rate"
+          value={biometrics.heartRate}
+          unit="bpm"
+          icon={Heart}
+          zone={biometrics.heartRateZone}
+          color="text-red-500"
+          bgColor="bg-red-50"
+        />
+        <BiometricCard
+          title="Hydration"
+          value={Math.round(biometrics.hydrationLevel)}
+          unit="%"
+          icon={Droplets}
+          status={biometrics.hydrationLevel > 85 ? 'good' : 'warning'}
+          color="text-blue-500"
+          bgColor="bg-blue-50"
+        />
+        <BiometricCard
+          title="Glycogen"
+          value={Math.round(biometrics.glycogenStores)}
+          unit="%"
+          icon={Zap}
+          status={biometrics.glycogenStores > 30 ? 'good' : 'low'}
+          color="text-yellow-500"
+          bgColor="bg-yellow-50"
+        />
+        <BiometricCard
+          title="Core Temp"
+          value={biometrics.coreTemp.toFixed(1)}
+          unit="°C"
+          icon={Thermometer}
+          status={biometrics.coreTemp < 38.5 ? 'normal' : 'high'}
+          color="text-orange-500"
+          bgColor="bg-orange-50"
+        />
+      </div>
+
+      {/* Recommendations Panel */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          <Brain className="w-5 h-5 mr-2 text-purple-500" />
+          AI Recommendations
+        </h3>
+        <div className="space-y-3 max-h-96 overflow-y-auto">
+          {recommendations.length > 0 ? (
+            recommendations.map(rec => (
+              <RecommendationCard key={rec.id} recommendation={rec} />
+            ))
+          ) : (
+            <p className="text-gray-500 text-sm">Start exercising to receive real-time recommendations</p>
+          )}
+        </div>
+      </div>
+
+      {/* Performance Chart */}
+      <div className="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Real-Time Performance</h3>
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart data={historicalData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <XAxis dataKey="time" stroke="#666" />
+            <YAxis stroke="#666" />
+            <Tooltip
+              contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', border: 'none', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+            />
+            <Line type="monotone" dataKey="heartRate" stroke="#ef4444" strokeWidth={2} dot={false} name="Heart Rate" />
+            <Line type="monotone" dataKey="hydration" stroke="#3b82f6" strokeWidth={2} dot={false} name="Hydration %" />
+            <Line type="monotone" dataKey="glycogen" stroke="#eab308" strokeWidth={2} dot={false} name="Glycogen %" />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Electrolyte Balance */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Electrolyte Balance</h3>
+        <div className="space-y-4">
+          <ElectrolyteBar name="Sodium" value={biometrics.electrolyteBalance.sodium} min={135} max={145} unit="mmol/L" />
+          <ElectrolyteBar name="Potassium" value={biometrics.electrolyteBalance.potassium} min={3.5} max={5.0} unit="mmol/L" />
+          <ElectrolyteBar name="Magnesium" value={biometrics.electrolyteBalance.magnesium} min={1.5} max={2.5} unit="mmol/L" />
+        </div>
+      </div>
+
+      {/* Status Information */}
+      <div className="lg:col-span-3 bg-gray-100 rounded-xl p-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-4 text-sm">
+            <div className="flex items-center space-x-2">
+              <Thermometer className="w-4 h-4 text-gray-500" />
+              <span className="text-gray-600">Temp: {environment.temperature}°C</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Droplets className="w-4 h-4 text-gray-500" />
+              <span className="text-gray-600">Humidity: {environment.humidity}%</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <BarChart3 className="w-4 h-4 text-gray-500" />
+              <span className="text-gray-600">VO2 Max: {biometrics.vo2Max}</span>
+            </div>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <CheckCircle2 className="w-4 h-4 text-green-500" />
+            <span className="text-sm text-gray-600">System Active</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Biometric card component
+  const BiometricCard = ({ title, value, unit, icon: Icon, zone, status, color, bgColor }) => (
+    <div className={`${bgColor} rounded-xl p-4 border border-gray-100`}>
+      <div className="flex items-center justify-between mb-2">
+        <Icon className={`w-5 h-5 ${color}`} />
+        {zone && (
+          <span className={`text-xs px-2 py-1 rounded-full ${getZoneColor(zone)}`}>
+            {zone}
+          </span>
+        )}
+        {status && (
+          <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(status)}`}>
+            {status}
+          </span>
+        )}
+      </div>
+      <div className="text-2xl font-bold text-gray-900">{value}<span className="text-sm font-normal text-gray-500">{unit}</span></div>
+      <div className="text-sm text-gray-600">{title}</div>
+    </div>
+  );
+
+  // Recommendation card component
+  const RecommendationCard = ({ recommendation }) => {
+    const { icon: Icon, title, message, timing, color, bgColor, borderColor } = recommendation;
+    return (
+      <div className={`${bgColor} border ${borderColor} rounded-lg p-3`}>
+        <div className="flex items-start space-x-3">
+          <Icon className={`w-5 h-5 ${color} mt-0.5`} />
+          <div className="flex-1">
+            <h4 className="font-semibold text-gray-900 text-sm">{title}</h4>
+            <p className="text-gray-700 text-sm">{message}</p>
+            <p className="text-xs text-gray-500 mt-1">{timing}</p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Electrolyte bar component
+  const ElectrolyteBar = ({ name, value, min, max, unit }) => {
+    const percentage = ((value - min) / (max - min)) * 100;
+    const isLow = value < min;
+    const isHigh = value > max;
+    
+    return (
+      <div>
+        <div className="flex justify-between text-sm mb-1">
+          <span className="font-medium text-gray-700">{name}</span>
+          <span className={`${isLow || isHigh ? 'text-red-600 font-semibold' : 'text-gray-600'}`}>
+            {value.toFixed(1)} {unit}
+          </span>
+        </div>
+        <div className="w-full bg-gray-200 rounded-full h-2 relative">
+          <div 
+            className={`h-2 rounded-full transition-all duration-500 ${
+              isLow || isHigh ? 'bg-red-500' : 'bg-green-500'
+            }`}
+            style={{ width: `${Math.min(Math.max(percentage, 0), 100)}%` }}
+          />
+          <div className="absolute inset-0 flex justify-between px-1">
+            <div className="w-0.5 h-2 bg-gray-400" style={{ left: '20%' }} />
+            <div className="w-0.5 h-2 bg-gray-400" style={{ left: '80%' }} />
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Helper functions
+  const getZoneColor = (zone) => {
+    const colors = {
+      rest: 'bg-gray-100 text-gray-600',
+      'warm-up': 'bg-blue-100 text-blue-600',
+      'fat-burn': 'bg-green-100 text-green-600',
+      aerobic: 'bg-yellow-100 text-yellow-600',
+      cardio: 'bg-orange-100 text-orange-600',
+      peak: 'bg-red-100 text-red-600'
+    };
+    return colors[zone] || 'bg-gray-100 text-gray-600';
+  };
+
+  const getStatusColor = (status) => {
+    const colors = {
+      good: 'bg-green-100 text-green-600',
+      normal: 'bg-blue-100 text-blue-600',
+      warning: 'bg-yellow-100 text-yellow-600',
+      low: 'bg-orange-100 text-orange-600',
+      high: 'bg-red-100 text-red-600'
+    };
+    return colors[status] || 'bg-gray-100 text-gray-600';
+  };
+
+  const formatDuration = (seconds) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Main render
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {showOnboarding && <OnboardingScreen />}
+      
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center">
+              <Brain className="w-8 h-8 text-purple-600 mr-3" />
+              <h1 className="text-2xl font-bold text-gray-900">BioSync</h1>
+              <span className="ml-3 text-sm text-gray-500 hidden md:inline">Real-Time Nutrition Optimization</span>
+            </div>
+            
+            <div className="flex items-center space-x-2 md:space-x-4">
+              {/* Exercise controls */}
+              <select
+                value={exerciseType}
+                onChange={(e) => setExerciseType(e.target.value)}
+                className="px-3 py-2 text-sm md:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                disabled={isExercising}
+              >
+                <option value="running">Running</option>
+                <option value="cycling">Cycling</option>
+                <option value="swimming">Swimming</option>
+                <option value="strength">Strength</option>
+                <option value="yoga">Yoga</option>
+              </select>
+              
+              <button
+                onClick={() => setIsExercising(!isExercising)}
+                className={`px-4 md:px-6 py-2 rounded-lg font-semibold text-sm md:text-base transition-all transform hover:scale-105 ${
+                  isExercising 
+                    ? 'bg-red-500 hover:bg-red-600 text-white' 
+                    : 'bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white'
+                }`}
+              >
+                {isExercising ? 'Stop' : 'Start'}
+              </button>
+              
+              {isExercising && (
+                <div className="hidden md:flex items-center space-x-2">
+                  <Timer className="w-5 h-5 text-gray-500" />
+                  <span className="font-mono text-lg font-semibold">{formatDuration(exerciseDuration)}</span>
+                </div>
+              )}
+              
+              <div className="hidden lg:flex items-center space-x-2 px-4 py-2 bg-gray-100 rounded-lg">
+                <User className="w-5 h-5 text-gray-500" />
+                <span className="text-sm font-medium text-gray-700">{userProfile.name}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Alert banner */}
+      {alerts.length > 0 && (
+        <div className="bg-red-50 border-b border-red-200 px-4 py-3">
+          <div className="max-w-7xl mx-auto flex items-center">
+            <AlertCircle className="w-5 h-5 text-red-600 mr-2 flex-shrink-0" />
+            <p className="text-red-800 text-sm font-medium">{alerts[0].message}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Timer for mobile */}
+      {isExercising && (
+        <div className="md:hidden bg-gray-100 px-4 py-2 flex items-center justify-center space-x-2">
+          <Timer className="w-5 h-5 text-gray-500" />
+          <span className="font-mono text-lg font-semibold">{formatDuration(exerciseDuration)}</span>
+        </div>
+      )}
+
+      {/* Main content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Dashboard />
+      </main>
+    </div>
+  );
+};
