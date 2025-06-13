@@ -3,16 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BioSync Test</title>
+    <title>BioSync React Test</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 </head>
 <body>
-    <h1>BioSync Test Page</h1>
-    <p>If you can see this text, HTML is loading!</p>
+    <h1>React Test</h1>
     <div id="root"></div>
     
     <script>
-        console.log("Basic JavaScript is working!");
-        document.getElementById('root').innerHTML = '<p style="color: green;">JavaScript successfully modified the page!</p>';
+        if (typeof React !== 'undefined') {
+            document.getElementById('root').innerHTML = '<p style="color: green;">React loaded successfully!</p>';
+        } else {
+            document.getElementById('root').innerHTML = '<p style="color: red;">React failed to load!</p>';
+        }
     </script>
 </body>
 </html>
