@@ -3,20 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BioSync React Test</title>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <title>BioSync - Minimal Version</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body>
-    <h1>React Test</h1>
     <div id="root"></div>
     
     <script>
-        if (typeof React !== 'undefined') {
-            document.getElementById('root').innerHTML = '<p style="color: green;">React loaded successfully!</p>';
-        } else {
-            document.getElementById('root').innerHTML = '<p style="color: red;">React failed to load!</p>';
+        const { useState } = React;
+        
+        function BioSyncMinimal() {
+            const [isExercising, setIsExercising] = useState(false);
+            
+            return React.createElement('div', { className: 'min-h-screen bg-gray-50 p-8' },
+                React.createElement('div', { className: 'max-w-4xl mx-auto' },
+                    React.createElement('h1', { className: 'text-4xl font-bold text-gray-800 mb-8' }, 'BioSync'),
+                    React.createElement('p', { className: 'text-lg text-gray-600 mb-8' }, 'Real-Time Nutrition Optimization System'),
+                    React.createElement('button', {
+                        onClick: () => setIsExercising(!isExercising),
+                        className: 'px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600'
+                    }, isExercising ? 'Stop Exercise' : 'Start Exercise'),
+                    isExercising && React.createElement('p', { className: 'mt-4 text-green-600 font-semibold' }, 'Exercise in progress...')
+                )
+            );
         }
+        
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(React.createElement(BioSyncMinimal));
     </script>
 </body>
 </html>
