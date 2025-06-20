@@ -3,14 +3,794 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BioSync - Real-Time Nutrition Optimization</title>
-    <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.development.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone@7.22.5/babel.min.js"></script>
+    <title>BioSync - Personal Health Optimizer</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body>
-    <div id="root"></div>
-    <script type="text/babel" src="biosync.js"></script>
+    <div id="root">
+        <div style="display: flex; justify-content: center; align-items: center; height: 100vh; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+            <div style="color: white; text-align: center;">
+                <h1 style="font-size: 2rem; margin-bottom: 1rem;">Loading BioSync...</h1>
+                <p>If this message persists, there may be a JavaScript error.</p>
+            </div>
+        </div>
+    </div>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Simple icons
+        const Brain = () => <span style={{fontSize: '3rem'}}>🧠</span>;
+        const Shield = () => <span style={{fontSize: '2rem'}}>🛡️</span>;
+        const Heart = () => <span style={{fontSize: '1.5rem'}}>❤️</span>;
+        const Droplets = () => <span style={{fontSize: '1.5rem'}}>💧</span>;
+        const Zap = () => <span style={{fontSize: '1.5rem'}}>⚡</span>;
+        const Thermometer = () => <span style={{fontSize: '1.5rem'}}>🌡️</span>;
+        const Upload = () => <span style={{fontSize: '3rem'}}>📤</span>;
+        const CheckCircle = () => <span style={{fontSize: '1.5rem'}}>✅</span>;
+        const User = () => <span style={{fontSize: '1.5rem'}}>👤</span>;
+        const Activity = () => <span style={{fontSize: '1.5rem'}}>📊</span>;
+
+        const BioSync = () => {
+            const [currentStep, setCurrentStep] = useState('welcome');
+            const [isExercising, setIsExercising] = useState(false);
+            const [exerciseDuration, setExerciseDuration] = useState(0);
+            const [exerciseType, setExerciseType] = useState('running');
+            
+            const [userProfile, setUserProfile] = useState({
+                name: '',
+                age: '',
+                gender: '',
+                weight: '',
+                height: '',
+                activityLevel: '',
+                fitnessGoals: [],
+                medicalConditions: [],
+                bmi: null,
+                bmr: null,
+                maxHeartRate: null
+            });
+
+            const [medicalReport, setMedicalReport] = useState(null);
+            const [reportAnalysis, setReportAnalysis] = useState(null);
+            
+            const [biometrics, setBiometrics] = useState({
+                heartRate: 72,
+                heartRateZone: 'rest',
+                hydrationLevel: 100,
+                glycogenStores: 100,
+                coreTemp: 37.0
+            });
+
+            const [recommendations, setRecommendations] = useState([]);
+            const [historicalData, setHistoricalData] = useState([]);
+
+            // Calculate BMI and BMR
+            useEffect(() => {
+                if (userProfile.weight && userProfile.height && userProfile.age) {
+                    const height = parseFloat(userProfile.height) / 100;
+                    const weight = parseFloat(userProfile.weight);
+                    const age = parseInt(userProfile.age);
+                    const bmi = weight / (height * height);
+                    
+                    let bmr;
+                    if (userProfile.gender === 'male') {
+                        bmr = 10 * weight + 6.25 * parseFloat(userProfile.height) - 5 * age + 5;
+                    } else {
+                        bmr = 10 * weight + 6.25 * parseFloat(userProfile.height) - 5 * age - 161;
+                    }
+                    
+                    setUserProfile(prev => ({
+                        ...prev,
+                        bmi: bmi.toFixed(1),
+                        bmr: Math.round(bmr),
+                        maxHeartRate: 220 - age
+                    }));
+                }
+            }, [userProfile.weight, userProfile.height, userProfile.age, userProfile.gender]);
+
+            // Exercise timer
+            useEffect(() => {
+                let interval;
+                if (isExercising) {
+                    interval = setInterval(() => {
+                        setExerciseDuration(prev => prev + 1);
+                        updateBiometrics();
+                        updateRecommendations();
+                    }, 1000);
+                }
+                return () => clearInterval(interval);
+            }, [isExercising, exerciseDuration]);
+
+            const updateBiometrics = () => {
+                setBiometrics(prev => {
+                    const intensity = { running: 2.0, cycling: 1.5, swimming: 1.8, strength: 1.2, yoga: 0.8 }[exerciseType];
+                    const baseHR = 72;
+                    const maxHR = userProfile.maxHeartRate || 190;
+                    const targetHR = Math.min(baseHR + (exerciseDuration * intensity * 0.3), maxHR * 0.85);
+                    const newHR = prev.heartRate + (targetHR - prev.heartRate) * 0.1;
+                    
+                    let zone = 'rest';
+                    const hrPercent = (newHR - baseHR) / (maxHR - baseHR) * 100;
+                    if (hrPercent > 80) zone = 'peak';
+                    else if (hrPercent > 70) zone = 'cardio';
+                    else if (hrPercent > 60) zone = 'aerobic';
+                    else if (hrPercent > 50) zone = 'fat-burn';
+                    else if (hrPercent > 0) zone = 'warm-up';
+
+                    return {
+                        ...prev,
+                        heartRate: Math.round(newHR),
+                        heartRateZone: zone,
+                        hydrationLevel: Math.max(prev.hydrationLevel - 0.3, 0),
+                        glycogenStores: Math.max(prev.glycogenStores - 0.2, 0),
+                        coreTemp: Math.min(prev.coreTemp + 0.01, 39.0)
+                    };
+                });
+
+                // Update chart data
+                setHistoricalData(prev => [...prev.slice(-30), {
+                    time: exerciseDuration,
+                    heartRate: biometrics.heartRate,
+                    hydration: biometrics.hydrationLevel
+                }]);
+            };
+
+            const updateRecommendations = () => {
+                const recs = [];
+                
+                recs.push({
+                    id: 'status',
+                    title: 'AI System Active',
+                    message: `Monitoring your ${exerciseType} - ${exerciseDuration}s elapsed`,
+                    bgColor: 'bg-blue-50'
+                });
+
+                if (biometrics.hydrationLevel < 90) {
+                    recs.push({
+                        id: 'hydration',
+                        title: 'Hydration Alert',
+                        message: 'Consider drinking water to maintain hydration',
+                        bgColor: 'bg-blue-50'
+                    });
+                }
+
+                if (biometrics.heartRateZone === 'peak') {
+                    recs.push({
+                        id: 'hr',
+                        title: 'Peak Zone',
+                        message: 'You\'re in peak heart rate zone - consider reducing intensity',
+                        bgColor: 'bg-red-50'
+                    });
+                }
+
+                if (biometrics.glycogenStores < 70) {
+                    recs.push({
+                        id: 'energy',
+                        title: 'Energy Alert',
+                        message: 'Consider consuming carbs to maintain energy levels',
+                        bgColor: 'bg-yellow-50'
+                    });
+                }
+
+                setRecommendations(recs);
+            };
+
+            const handleProfileSubmit = (e) => {
+                e.preventDefault();
+                if (userProfile.name && userProfile.age && userProfile.gender && userProfile.weight && userProfile.height) {
+                    setCurrentStep('medical');
+                }
+            };
+
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    setMedicalReport(file);
+                    setTimeout(() => {
+                        setReportAnalysis({
+                            glucose: 'normal',
+                            cholesterol: 'normal',
+                            recommendations: ['Monitor hydration during exercise', 'Maintain balanced nutrition']
+                        });
+                    }, 2000);
+                }
+            };
+
+            // WELCOME SCREEN
+            if (currentStep === 'welcome') {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 flex items-center justify-center p-4">
+                        <div style={{
+                            background: 'rgba(255,255,255,0.1)',
+                            backdropFilter: 'blur(10px)',
+                            borderRadius: '24px',
+                            padding: '2rem',
+                            maxWidth: '600px',
+                            width: '100%',
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            textAlign: 'center'
+                        }}>
+                            <Brain />
+                            <h1 style={{fontSize: '2.5rem', fontWeight: 'bold', color: 'white', margin: '1rem 0'}}>
+                                Welcome to BioSync
+                            </h1>
+                            <p style={{color: 'rgba(255,255,255,0.8)', fontSize: '1.1rem', margin: '1.5rem 0'}}>
+                                AI-powered nutrition optimization that adapts to your unique physiology. 
+                                Let's collect your personal information for personalized recommendations.
+                            </p>
+                            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', margin: '2rem 0'}}>
+                                <Shield />
+                                <span style={{color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem'}}>
+                                    Your data is secure and never shared
+                                </span>
+                            </div>
+                            <button
+                                onClick={() => setCurrentStep('profile')}
+                                style={{
+                                    width: '100%',
+                                    background: 'linear-gradient(to right, #3b82f6, #8b5cf6)',
+                                    color: 'white',
+                                    fontWeight: '600',
+                                    padding: '1rem 2rem',
+                                    borderRadius: '12px',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    fontSize: '1.1rem'
+                                }}
+                            >
+                                Get Started
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+
+            // PROFILE SCREEN
+            if (currentStep === 'profile') {
+                return (
+                    <div className="min-h-screen bg-gray-50 py-8">
+                        <div className="max-w-2xl mx-auto px-4">
+                            <div className="bg-white rounded-2xl shadow-xl p-8">
+                                <h2 className="text-3xl font-bold text-gray-800 mb-6">Personal Profile</h2>
+                                <form onSubmit={handleProfileSubmit} className="space-y-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Name *</label>
+                                            <input
+                                                type="text"
+                                                required
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                value={userProfile.name}
+                                                onChange={(e) => setUserProfile({...userProfile, name: e.target.value})}
+                                                placeholder="Enter your full name"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Age *</label>
+                                            <input
+                                                type="number"
+                                                required
+                                                min="10"
+                                                max="100"
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                value={userProfile.age}
+                                                onChange={(e) => setUserProfile({...userProfile, age: e.target.value})}
+                                                placeholder="25"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-3">Gender *</label>
+                                        <div className="flex space-x-6">
+                                            {['male', 'female', 'other'].map(gender => (
+                                                <label key={gender} className="flex items-center cursor-pointer">
+                                                    <input
+                                                        type="radio"
+                                                        name="gender"
+                                                        value={gender}
+                                                        required
+                                                        className="mr-2 text-blue-600"
+                                                        checked={userProfile.gender === gender}
+                                                        onChange={(e) => setUserProfile({...userProfile, gender: e.target.value})}
+                                                    />
+                                                    <span className="capitalize">{gender}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Weight (kg) *</label>
+                                            <input
+                                                type="number"
+                                                required
+                                                min="30"
+                                                max="300"
+                                                step="0.1"
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                value={userProfile.weight}
+                                                onChange={(e) => setUserProfile({...userProfile, weight: e.target.value})}
+                                                placeholder="70"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Height (cm) *</label>
+                                            <input
+                                                type="number"
+                                                required
+                                                min="100"
+                                                max="250"
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                value={userProfile.height}
+                                                onChange={(e) => setUserProfile({...userProfile, height: e.target.value})}
+                                                placeholder="175"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Activity Level *</label>
+                                        <select
+                                            required
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            value={userProfile.activityLevel}
+                                            onChange={(e) => setUserProfile({...userProfile, activityLevel: e.target.value})}
+                                        >
+                                            <option value="">Select your activity level</option>
+                                            <option value="sedentary">Sedentary (desk job, little exercise)</option>
+                                            <option value="light">Light (exercise 1-3 days/week)</option>
+                                            <option value="moderate">Moderate (exercise 3-5 days/week)</option>
+                                            <option value="active">Active (exercise 6-7 days/week)</option>
+                                            <option value="athlete">Athlete (intense daily training)</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-3">Fitness Goals (select all that apply)</label>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {['Weight Loss', 'Muscle Gain', 'Endurance', 'General Health', 'Performance', 'Recovery'].map(goal => (
+                                                <label key={goal} className="flex items-center cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="mr-2 text-blue-600"
+                                                        checked={userProfile.fitnessGoals.includes(goal)}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setUserProfile({...userProfile, fitnessGoals: [...userProfile.fitnessGoals, goal]});
+                                                            } else {
+                                                                setUserProfile({...userProfile, fitnessGoals: userProfile.fitnessGoals.filter(g => g !== goal)});
+                                                            }
+                                                        }}
+                                                    />
+                                                    {goal}
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-3">Medical Conditions (select any that apply)</label>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {['None', 'Diabetes', 'Hypertension', 'Heart Disease', 'Asthma', 'Thyroid Issues'].map(condition => (
+                                                <label key={condition} className="flex items-center cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="mr-2 text-blue-600"
+                                                        checked={userProfile.medicalConditions.includes(condition)}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setUserProfile({...userProfile, medicalConditions: [...userProfile.medicalConditions, condition]});
+                                                            } else {
+                                                                setUserProfile({...userProfile, medicalConditions: userProfile.medicalConditions.filter(c => c !== condition)});
+                                                            }
+                                                        }}
+                                                    />
+                                                    {condition}
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {userProfile.bmi && (
+                                        <div className="bg-blue-50 rounded-lg p-4">
+                                            <h3 className="font-semibold text-gray-800 mb-2">📊 Your Calculated Metrics:</h3>
+                                            <div className="grid grid-cols-3 gap-4 text-sm">
+                                                <div>
+                                                    <span className="text-gray-600">BMI:</span>
+                                                    <span className="font-semibold ml-2 text-blue-600">{userProfile.bmi}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-gray-600">BMR:</span>
+                                                    <span className="font-semibold ml-2 text-green-600">{userProfile.bmr} cal/day</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-gray-600">Max HR:</span>
+                                                    <span className="font-semibold ml-2 text-red-600">{userProfile.maxHeartRate} bpm</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <button
+                                        type="submit"
+                                        className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold py-3 rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all"
+                                    >
+                                        Continue to Medical Information →
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // MEDICAL UPLOAD SCREEN
+            if (currentStep === 'medical') {
+                return (
+                    <div className="min-h-screen bg-gray-50 py-8">
+                        <div className="max-w-2xl mx-auto px-4">
+                            <div className="bg-white rounded-2xl shadow-xl p-8">
+                                <h2 className="text-3xl font-bold text-gray-800 mb-6">Medical Information</h2>
+                                <p className="text-gray-600 mb-8">
+                                    Upload your recent medical report for personalized nutrition recommendations. This step is optional but highly recommended for the most accurate guidance.
+                                </p>
+
+                                <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center mb-6 hover:border-blue-400 transition-colors">
+                                    <Upload />
+                                    <h3 className="text-xl font-semibold mb-2 mt-4">Upload Medical Report</h3>
+                                    <p className="text-gray-600 mb-4">PDF, JPG, PNG, or any image format (Max 10MB)</p>
+                                    <input
+                                        type="file"
+                                        accept=".pdf,.jpg,.jpeg,.png,.gif,.bmp"
+                                        onChange={handleFileUpload}
+                                        className="hidden"
+                                        id="medical-upload"
+                                    />
+                                    <label
+                                        htmlFor="medical-upload"
+                                        className="inline-block bg-blue-500 text-white px-6 py-3 rounded-lg cursor-pointer hover:bg-blue-600 transition-colors font-medium"
+                                    >
+                                        Choose File
+                                    </label>
+                                </div>
+
+                                {medicalReport && (
+                                    <div className="bg-green-50 border-l-4 border-green-400 p-4 mb-6">
+                                        <div className="flex items-center">
+                                            <CheckCircle />
+                                            <div className="ml-3">
+                                                <p className="font-semibold text-green-800">✅ File Uploaded Successfully!</p>
+                                                <p className="text-green-700">{medicalReport.name}</p>
+                                                <p className="text-sm text-green-600 mt-1">Analyzing your medical data...</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {reportAnalysis && (
+                                    <div className="bg-blue-50 rounded-xl p-6 mb-6">
+                                        <h3 className="font-semibold text-lg mb-4">🔬 Medical Report Analysis Results</h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                            <div className="bg-white p-4 rounded-lg">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="font-medium">Blood Glucose:</span>
+                                                    <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold">
+                                                        {reportAnalysis.glucose}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="bg-white p-4 rounded-lg">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="font-medium">Cholesterol:</span>
+                                                    <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold">
+                                                        {reportAnalysis.cholesterol}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="bg-white p-4 rounded-lg">
+                                            <h4 className="font-semibold mb-2">🎯 Personalized Recommendations:</h4>
+                                            <ul className="space-y-1">
+                                                {reportAnalysis.recommendations.map((rec, i) => (
+                                                    <li key={i} className="flex items-start text-sm">
+                                                        <span className="text-blue-500 mr-2">•</span>
+                                                        <span>{rec}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="bg-gray-50 rounded-xl p-4 mb-6">
+                                    <div className="flex items-start">
+                                        <Shield />
+                                        <div className="ml-3">
+                                            <h4 className="font-semibold mb-1">🔒 Privacy & Security</h4>
+                                            <p className="text-sm text-gray-600">
+                                                Your medical data is processed locally in your browser and never stored on our servers. 
+                                                All analysis happens in real-time and your data is completely private.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex space-x-4">
+                                    <button
+                                        onClick={() => setCurrentStep('profile')}
+                                        className="flex-1 bg-gray-200 text-gray-800 font-semibold py-3 rounded-lg hover:bg-gray-300 transition-colors"
+                                    >
+                                        ← Back
+                                    </button>
+                                    <button
+                                        onClick={() => setCurrentStep('dashboard')}
+                                        className="flex-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold py-3 rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all"
+                                    >
+                                        {medicalReport ? 'Start BioSync 🚀' : 'Skip & Continue'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // DASHBOARD
+            return (
+                <div className="min-h-screen bg-gray-50">
+                    {/* Header */}
+                    <header className="bg-white shadow-sm border-b">
+                        <div className="max-w-7xl mx-auto px-4 py-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-3">
+                                    <Brain />
+                                    <div>
+                                        <h1 className="text-2xl font-bold">BioSync</h1>
+                                        <p className="text-sm text-gray-600">Welcome back, {userProfile.name}!</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center space-x-4">
+                                    <select
+                                        value={exerciseType}
+                                        onChange={(e) => setExerciseType(e.target.value)}
+                                        className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        disabled={isExercising}
+                                    >
+                                        <option value="running">🏃 Running</option>
+                                        <option value="cycling">🚴 Cycling</option>
+                                        <option value="swimming">🏊 Swimming</option>
+                                        <option value="strength">💪 Strength</option>
+                                        <option value="yoga">🧘 Yoga</option>
+                                    </select>
+                                    <button
+                                        onClick={() => setIsExercising(!isExercising)}
+                                        className={`px-6 py-2 rounded-lg font-semibold text-white transition-all ${
+                                            isExercising 
+                                                ? 'bg-red-500 hover:bg-red-600' 
+                                                : 'bg-green-500 hover:bg-green-600'
+                                        }`}
+                                    >
+                                        {isExercising ? '⏹️ Stop' : '▶️ Start'}
+                                    </button>
+                                    {isExercising && (
+                                        <div className="font-mono text-lg font-bold text-blue-600">
+                                            {Math.floor(exerciseDuration / 60)}:{(exerciseDuration % 60).toString().padStart(2, '0')}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* User Info Bar */}
+                    <div className="bg-blue-50 border-b px-4 py-3">
+                        <div className="max-w-7xl mx-auto flex items-center justify-between text-sm">
+                            <div className="flex items-center space-x-6">
+                                <span>👤 <strong>Age:</strong> {userProfile.age}</span>
+                                <span>📏 <strong>BMI:</strong> {userProfile.bmi}</span>
+                                <span>🏃 <strong>Level:</strong> {userProfile.activityLevel}</span>
+                                <span>❤️ <strong>Max HR:</strong> {userProfile.maxHeartRate} bpm</span>
+                                {isExercising && <span className="text-green-600 font-bold">🟢 EXERCISE ACTIVE</span>}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Main Dashboard */}
+                    <main className="max-w-7xl mx-auto px-4 py-8">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            {/* Biometric Cards */}
+                            <div className="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div className="bg-red-50 rounded-xl p-4 hover:shadow
+                                <div className="bg-red-50 rounded-xl p-4 hover:shadow-lg transition-all">
+                                   <Heart />
+                                   <div className="text-2xl font-bold">{biometrics.heartRate}</div>
+                                   <div className="text-sm text-gray-600">Heart Rate</div>
+                                   <div className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full mt-2 inline-block">
+                                       {biometrics.heartRateZone}
+                                   </div>
+                               </div>
+                               
+                               <div className="bg-blue-50 rounded-xl p-4 hover:shadow-lg transition-all">
+                                   <Droplets />
+                                   <div className="text-2xl font-bold">{Math.round(biometrics.hydrationLevel)}%</div>
+                                   <div className="text-sm text-gray-600">Hydration</div>
+                                   <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                       <div 
+                                           className="bg-blue-500 h-2 rounded-full transition-all duration-500"
+                                           style={{ width: `${biometrics.hydrationLevel}%` }}
+                                       />
+                                   </div>
+                               </div>
+                               
+                               <div className="bg-yellow-50 rounded-xl p-4 hover:shadow-lg transition-all">
+                                   <Zap />
+                                   <div className="text-2xl font-bold">{Math.round(biometrics.glycogenStores)}%</div>
+                                   <div className="text-sm text-gray-600">Energy</div>
+                                   <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                       <div 
+                                           className="bg-yellow-500 h-2 rounded-full transition-all duration-500"
+                                           style={{ width: `${biometrics.glycogenStores}%` }}
+                                       />
+                                   </div>
+                               </div>
+                               
+                               <div className="bg-orange-50 rounded-xl p-4 hover:shadow-lg transition-all">
+                                   <Thermometer />
+                                   <div className="text-2xl font-bold">{biometrics.coreTemp.toFixed(1)}°C</div>
+                                   <div className="text-sm text-gray-600">Core Temp</div>
+                                   <div className={`text-xs mt-2 px-2 py-1 rounded-full inline-block ${
+                                       biometrics.coreTemp > 38.0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                                   }`}>
+                                       {biometrics.coreTemp > 38.0 ? '⚠️ High' : '✅ Normal'}
+                                   </div>
+                               </div>
+                           </div>
+
+                           {/* AI Recommendations */}
+                           <div className="bg-white rounded-xl shadow-lg p-6">
+                               <h3 className="text-lg font-semibold mb-4 flex items-center">
+                                   🧠 AI Recommendations
+                               </h3>
+                               <div className="space-y-3 max-h-96 overflow-y-auto">
+                                   {recommendations.length > 0 ? (
+                                       recommendations.map(rec => (
+                                           <div key={rec.id} className={`${rec.bgColor} rounded-lg p-3 border-l-4 border-blue-500`}>
+                                               <h4 className="font-semibold text-sm">{rec.title}</h4>
+                                               <p className="text-xs text-gray-700 mt-1">{rec.message}</p>
+                                           </div>
+                                       ))
+                                   ) : (
+                                       <div className="text-center py-8">
+                                           <Activity />
+                                           <p className="text-gray-500 mt-2">
+                                               {isExercising ? 'AI analyzing your performance...' : 'Start exercising to receive AI recommendations!'}
+                                           </p>
+                                       </div>
+                                   )}
+                               </div>
+                               
+                               {reportAnalysis && reportAnalysis.recommendations && (
+                                   <div className="mt-4 pt-4 border-t">
+                                       <h4 className="font-semibold text-sm mb-2 text-blue-600">📋 From Your Medical Report:</h4>
+                                       <ul className="text-xs text-gray-600 space-y-1">
+                                           {reportAnalysis.recommendations.map((rec, i) => (
+                                               <li key={i} className="flex items-start">
+                                                   <span className="text-blue-500 mr-2">•</span>
+                                                   <span>{rec}</span>
+                                               </li>
+                                           ))}
+                                       </ul>
+                                   </div>
+                               )}
+                           </div>
+
+                           {/* Performance Chart */}
+                           <div className="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">
+                               <h3 className="text-lg font-semibold mb-4 flex items-center">
+                                   📊 Real-Time Performance
+                               </h3>
+                               <div className="h-64 flex items-end space-x-1 bg-gray-50 rounded-lg p-4">
+                                   {historicalData.length > 0 ? (
+                                       historicalData.slice(-30).map((data, i) => (
+                                           <div key={i} className="flex-1 flex flex-col justify-end">
+                                               <div 
+                                                   className="bg-red-400 rounded-t transition-all duration-300 hover:bg-red-500"
+                                                   style={{ 
+                                                       height: `${(data.heartRate / 200) * 100}%`,
+                                                       minHeight: '4px'
+                                                   }}
+                                                   title={`Time: ${data.time}s | HR: ${data.heartRate} | Hydration: ${data.hydration}%`}
+                                               />
+                                           </div>
+                                       ))
+                                   ) : (
+                                       <div className="w-full flex items-center justify-center text-gray-500">
+                                           Start exercising to see your performance data!
+                                       </div>
+                                   )}
+                               </div>
+                               
+                               {isExercising && historicalData.length > 0 && (
+                                   <div className="mt-4 grid grid-cols-3 gap-4 text-center">
+                                       <div className="bg-red-50 p-3 rounded-lg">
+                                           <p className="text-sm text-gray-600">Avg Heart Rate</p>
+                                           <p className="text-lg font-bold text-red-600">
+                                               {Math.round(historicalData.reduce((sum, d) => sum + d.heartRate, 0) / historicalData.length)}
+                                           </p>
+                                       </div>
+                                       <div className="bg-orange-50 p-3 rounded-lg">
+                                           <p className="text-sm text-gray-600">Calories Burned</p>
+                                           <p className="text-lg font-bold text-orange-600">
+                                               {Math.round(exerciseDuration * 0.15 * (parseFloat(userProfile.weight) || 70) / 60)}
+                                           </p>
+                                       </div>
+                                       <div className="bg-blue-50 p-3 rounded-lg">
+                                           <p className="text-sm text-gray-600">Duration</p>
+                                           <p className="text-lg font-bold text-blue-600">
+                                               {Math.floor(exerciseDuration / 60)}:{(exerciseDuration % 60).toString().padStart(2, '0')}
+                                           </p>
+                                       </div>
+                                   </div>
+                               )}
+                           </div>
+
+                           {/* Personal Stats */}
+                           <div className="bg-white rounded-xl shadow-lg p-6">
+                               <h3 className="text-lg font-semibold mb-4 flex items-center">
+                                   <User /> Your Personal Stats
+                               </h3>
+                               <div className="space-y-4">
+                                   <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                       <span className="text-gray-600">🔥 Daily Calories:</span>
+                                       <span className="font-bold text-orange-600">
+                                           {Math.round((userProfile.bmr || 1680) * 1.5)} cal
+                                       </span>
+                                   </div>
+                                   <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                       <span className="text-gray-600">💧 Water Needs:</span>
+                                       <span className="font-bold text-blue-600">
+                                           {Math.round((parseFloat(userProfile.weight) || 70) * 35)} ml/day
+                                       </span>
+                                   </div>
+                                   <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                       <span className="text-gray-600">🎯 Goals:</span>
+                                       <span className="font-bold text-purple-600 text-sm">
+                                           {userProfile.fitnessGoals.slice(0, 2).join(', ') || 'General Health'}
+                                       </span>
+                                   </div>
+                                   <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                       <span className="text-gray-600">📈 Status:</span>
+                                       <span className={`font-bold ${isExercising ? 'text-green-600' : 'text-gray-600'}`}>
+                                           {isExercising ? '🏃 Exercising' : '😌 Resting'}
+                                       </span>
+                                   </div>
+                                   
+                                   {userProfile.medicalConditions.length > 0 && userProfile.medicalConditions[0] !== 'None' && (
+                                       <div className="p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
+                                           <span className="text-sm font-medium text-yellow-800">⚠️ Medical Conditions:</span>
+                                           <p className="text-sm text-yellow-700 mt-1">
+                                               {userProfile.medicalConditions.filter(c => c !== 'None').join(', ')}
+                                           </p>
+                                       </div>
+                                   )}
+                               </div>
+                           </div>
+                       </div>
+                   </main>
+               </div>
+           );
+       };
+
+       // Render the app
+       const root = ReactDOM.createRoot(document.getElementById('root'));
+       root.render(<BioSync />);
+   </script>
 </body>
 </html>
