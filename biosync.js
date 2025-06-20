@@ -248,64 +248,116 @@ const BioSyncAdvanced = () => {
         }
     }, [exerciseDuration]);
 
-    const generatePersonalizedRecommendations = () => {
-        const recs = [];
+   const generatePersonalizedRecommendations = () => {
+    const recs = [];
 
-        // Hydration recommendations adjusted for body weight
-        if (biometrics.hydrationLevel < 85) {
-            const waterNeeded = Math.round((100 - biometrics.hydrationLevel) * (parseFloat(userProfile.weight) || 70) * 0.01 * 1000);
-            recs.push({
-                id: Date.now() + 1,
-                type: 'hydration',
-                title: 'Hydration Alert',
-                message: `Drink ${waterNeeded}ml water immediately`,
-                icon: Droplets,
-                color: 'text-blue-500',
-                bgColor: 'bg-blue-50'
-            });
-        }
+    // Show recommendations earlier and more frequently
+    
+    // Hydration recommendations (trigger at 95% instead of 85%)
+    if (biometrics.hydrationLevel < 95) {
+        const waterNeeded = Math.round((100 - biometrics.hydrationLevel) * (parseFloat(userProfile.weight) || 70) * 0.01 * 1000);
+        recs.push({
+            id: Date.now() + 1,
+            type: 'hydration',
+            title: 'Hydration Alert',
+            message: `Drink ${waterNeeded}ml water immediately`,
+            icon: Droplets,
+            color: 'text-blue-500',
+            bgColor: 'bg-blue-50'
+        });
+    }
 
-        // Personalized based on medical data
-        if (reportAnalysis && reportAnalysis.lowElectrolytes) {
-            recs.push({
-                id: Date.now() + 2,
-                type: 'electrolyte',
-                title: 'Electrolyte Attention',
-                message: 'Your medical report shows low baseline electrolytes. Consider electrolyte drink.',
-                icon: Zap,
-                color: 'text-yellow-500',
-                bgColor: 'bg-yellow-50'
-            });
-        }
+    // Energy recommendations (trigger at 80% instead of 30%)
+    if (biometrics.glycogenStores < 80) {
+        recs.push({
+            id: Date.now() + 2,
+            type: 'energy',
+            title: 'Energy Management',
+            message: 'Consider consuming 15-30g carbs to maintain energy levels',
+            icon: Zap,
+            color: 'text-yellow-500',
+            bgColor: 'bg-yellow-50'
+        });
+    }
 
-        // Special recommendations for medical conditions
-        if (userProfile.medicalConditions.includes('Diabetes') && biometrics.glycogenStores < 40) {
-            recs.push({
-                id: Date.now() + 3,
-                type: 'glucose',
-                title: 'Blood Sugar Alert',
-                message: 'Monitor blood glucose. Consider 15g quick carbs.',
-                icon: AlertCircle,
-                color: 'text-red-500',
-                bgColor: 'bg-red-50'
-            });
-        }
+    // Heart rate zone recommendations
+    if (biometrics.heartRateZone === 'peak') {
+        recs.push({
+            id: Date.now() + 3,
+            type: 'intensity',
+            title: 'Peak Zone Alert',
+            message: 'You\'re in peak zone! Consider reducing intensity for sustained performance',
+            icon: Heart,
+            color: 'text-red-500',
+            bgColor: 'bg-red-50'
+        });
+    } else if (biometrics.heartRateZone === 'cardio') {
+        recs.push({
+            id: Date.now() + 4,
+            type: 'performance',
+            title: 'Optimal Cardio Zone',
+            message: 'Perfect! You\'re in the cardio zone for maximum fat burn',
+            icon: TrendingUp,
+            color: 'text-green-500',
+            bgColor: 'bg-green-50'
+        });
+    }
 
-        if (biometrics.coreTemp > 38.5) {
-            recs.push({
-                id: Date.now() + 4,
-                type: 'cooling',
-                title: 'Overheating Risk',
-                message: 'Reduce intensity and cool down',
-                icon: Thermometer,
-                color: 'text-red-500',
-                bgColor: 'bg-red-50'
-            });
-        }
+    // Temperature management (trigger at 38.0° instead of 38.5°)
+    if (biometrics.coreTemp > 38.0) {
+        recs.push({
+            id: Date.now() + 5,
+            type: 'cooling',
+            title: 'Temperature Rising',
+            message: 'Core temperature elevated. Consider cooling strategies',
+            icon: Thermometer,
+            color: 'text-orange-500',
+            bgColor: 'bg-orange-50'
+        });
+    }
 
-        setRecommendations(recs);
-    };
+    // Exercise duration recommendations
+    if (exerciseDuration > 30 && exerciseDuration < 60) {
+        recs.push({
+            id: Date.now() + 6,
+            type: 'motivation',
+            title: 'Great Progress!',
+            message: 'You\'re doing amazing! Keep up the steady pace',
+            icon: CheckCircle2,
+            color: 'text-green-500',
+            bgColor: 'bg-green-50'
+        });
+    }
 
+    // Personalized based on user profile
+    if (userProfile.activityLevel === 'sedentary' && exerciseDuration > 20) {
+        recs.push({
+            id: Date.now() + 7,
+            type: 'encouragement',
+            title: 'Building Endurance',
+            message: 'Excellent work building your fitness base! Listen to your body',
+            icon: User,
+            color: 'text-purple-500',
+            bgColor: 'bg-purple-50'
+        });
+    }
+
+    // Add a demo recommendation if no others are triggered
+    if (recs.length === 0 && exerciseDuration > 5) {
+        recs.push({
+            id: Date.now() + 8,
+            type: 'demo',
+            title: 'AI System Active',
+            message: 'BioSync is monitoring your performance and will provide recommendations as needed',
+            icon: Brain,
+            color: 'text-blue-500',
+            bgColor: 'bg-blue-50'
+        });
+    }
+
+    console.log('Generated recommendations:', recs);
+    setRecommendations(recs);
+};
     const checkForAlerts = () => {
         const newAlerts = [];
 
