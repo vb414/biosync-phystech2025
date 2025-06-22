@@ -1,6 +1,6 @@
 const { useState, useEffect, useRef } = React;
 
-// Icon components (same as before)
+// Icon components
 const Heart = ({ className = "" }) => <span className={className}>❤️</span>;
 const Droplets = ({ className = "" }) => <span className={className}>💧</span>;
 const Zap = ({ className = "" }) => <span className={className}>⚡</span>;
@@ -16,6 +16,7 @@ const TrendingUp = ({ className = "" }) => <span className={className}>📈</spa
 const Upload = ({ className = "" }) => <span className={className}>📤</span>;
 const Shield = ({ className = "" }) => <span className={className}>🛡️</span>;
 
+// Enhanced Chart Component with real-time updates
 const SimpleChart = ({ data }) => {
     if (!data || data.length === 0) return <div className="text-gray-500 text-center">No data yet - Start exercising to see your performance</div>;
     
@@ -27,9 +28,13 @@ const SimpleChart = ({ data }) => {
                 {data.slice(-30).map((item, i) => (
                     <div key={i} className="flex-1 flex flex-col justify-end">
                         <div 
-                            className="w-full bg-red-400 rounded-t transition-all duration-300 hover:bg-red-500"
-                            style={{ height: `${(item.heartRate / maxValue) * 100}%`, minHeight: '4px' }}
-                            title={`Time: ${item.time}s | HR: ${item.heartRate} | Hydration: ${item.hydration}%`}
+                            className="w-full bg-gradient-to-t from-red-500 to-red-400 rounded-t transition-all duration-300 hover:from-red-600 hover:to-red-500"
+                            style={{ 
+                                height: `${(item.heartRate / maxValue) * 100}%`, 
+                                minHeight: '4px',
+                                animation: 'grow 0.5s ease-out'
+                            }}
+                            title={`Time: ${item.time}s | HR: ${item.heartRate} | Hydration: ${Math.round(item.hydration)}%`}
                         />
                     </div>
                 ))}
@@ -42,9 +47,7 @@ const SimpleChart = ({ data }) => {
         </div>
     );
 };
-
 const BioSyncAdvanced = () => {
-    // FIXED: Start with welcome screen instead of dashboard
     const [currentStep, setCurrentStep] = useState('welcome');
     const [isExercising, setIsExercising] = useState(false);
     const [exerciseType, setExerciseType] = useState('running');
@@ -69,7 +72,7 @@ const BioSyncAdvanced = () => {
     const [medicalReport, setMedicalReport] = useState(null);
     const [reportAnalysis, setReportAnalysis] = useState(null);
 
-    // Biometrics state
+    // Enhanced biometrics state with flags for recent actions
     const [biometrics, setBiometrics] = useState({
         heartRate: 72,
         heartRateZone: 'rest',
@@ -79,7 +82,9 @@ const BioSyncAdvanced = () => {
         electrolyteBalance: { sodium: 140, potassium: 4.0, magnesium: 1.8 },
         glycogenStores: 100,
         fatigue: 0,
-        vo2Max: 45
+        vo2Max: 45,
+        recentlyHydrated: false,
+        recentlyEnergized: false
     });
 
     const [recommendations, setRecommendations] = useState([]);
@@ -138,6 +143,7 @@ const BioSyncAdvanced = () => {
         }
     }, [exerciseDuration, isExercising]);
 
+    // Enhanced updateBiometrics with recent action tracking
     const updateBiometrics = () => {
         setBiometrics(prev => {
             const intensityMultiplier = {
@@ -161,8 +167,15 @@ const BioSyncAdvanced = () => {
             const bodyWeightFactor = (parseFloat(userProfile.weight) || 70) / 70;
             const newSweatRate = 0.5 * intensityFactor * bodyWeightFactor;
             const newCoreTemp = Math.min(prev.coreTemp + intensityFactor * 0.015, 39.5);
-            const newHydration = Math.max(prev.hydrationLevel - (newSweatRate * 0.5), 0);
-            const newGlycogen = Math.max(prev.glycogenStores - (intensityFactor * 0.3), 0);
+            
+            // Only decrease hydration/glycogen if not recently replenished
+            const newHydration = prev.recentlyHydrated ? 
+                prev.hydrationLevel : 
+                Math.max(prev.hydrationLevel - (newSweatRate * 0.5), 0);
+            
+            const newGlycogen = prev.recentlyEnergized ? 
+                prev.glycogenStores : 
+                Math.max(prev.glycogenStores - (intensityFactor * 0.3), 0);
 
             return {
                 ...prev,
@@ -171,89 +184,120 @@ const BioSyncAdvanced = () => {
                 sweatRate: newSweatRate,
                 coreTemp: newCoreTemp,
                 hydrationLevel: newHydration,
-                glycogenStores: newGlycogen
+                glycogenStores: newGlycogen,
+                recentlyHydrated: false,
+                recentlyEnergized: false
             };
         });
     };
 
+    // Enhanced generateRecommendations with actionable items
     const generateRecommendations = () => {
         const recs = [];
 
-        // Always show current status
+        // Personalized status
         recs.push({
             id: 'status',
             type: 'status',
-            title: 'AI System Active',
-            message: `Analyzing your ${exerciseType} session - ${exerciseDuration}s elapsed`,
+            title: `${userProfile.name}'s AI Analysis`,
+            message: `Monitoring your ${exerciseType} session - ${Math.floor(exerciseDuration/60)}:${(exerciseDuration%60).toString().padStart(2,'0')} elapsed. Heart rate in ${biometrics.heartRateZone} zone.`,
             icon: Brain,
             color: 'text-blue-500',
-            bgColor: 'bg-blue-50'
+            bgColor: 'bg-blue-50',
+            actionable: false
         });
 
-        // Hydration recommendations
-        if (biometrics.hydrationLevel < 95) {
-            const waterNeeded = Math.round((100 - biometrics.hydrationLevel) * (parseFloat(userProfile.weight) || 70) * 0.01 * 1000);
+        // ACTIONABLE HYDRATION
+        if (biometrics.hydrationLevel < 90 && !recommendations.find(r => r.id === 'hydration' && r.completed)) {
+            const bodyWeight = parseFloat(userProfile.weight) || 70;
+            const waterNeeded = Math.round((100 - biometrics.hydrationLevel) * bodyWeight * 0.015);
+            const exerciseMultiplier = {
+                running: 1.3, cycling: 1.0, swimming: 0.8, strength: 1.1, yoga: 0.6
+            }[exerciseType];
+            const adjustedWater = Math.round(waterNeeded * exerciseMultiplier);
+            
+            let urgency = '';
+            if (biometrics.hydrationLevel < 70) urgency = 'URGENT:';
+            else if (biometrics.hydrationLevel < 80) urgency = 'Important:';
+            
             recs.push({
                 id: 'hydration',
                 type: 'hydration',
-                title: 'Hydration Alert',
-                message: `Drink ${waterNeeded}ml water to maintain optimal hydration`,
+                title: `${urgency} Hydration Alert`,
+                message: `${userProfile.name}, drink ${adjustedWater}ml water now. As a ${userProfile.activityLevel} athlete (${bodyWeight}kg), your body needs extra hydration during ${exerciseType}.`,
                 icon: Droplets,
                 color: 'text-blue-500',
-                bgColor: 'bg-blue-50'
+                bgColor: biometrics.hydrationLevel < 70 ? 'bg-red-50' : 'bg-blue-50',
+                actionable: true,
+                value: adjustedWater
             });
         }
 
         // Heart rate zone feedback
         if (biometrics.heartRateZone === 'peak') {
+            const ageGroup = userProfile.age < 25 ? 'young athlete' : userProfile.age > 50 ? 'experienced athlete' : 'athlete';
             recs.push({
                 id: 'hr-peak',
                 type: 'intensity',
-                title: 'Peak Zone Alert',
-                message: 'You\'re in peak zone! Consider reducing intensity',
+                title: `Peak Zone Alert for ${userProfile.age}-year-old`,
+                message: `${userProfile.name}, as a ${ageGroup}, reduce intensity to 70-85% max HR (${Math.round(userProfile.maxHeartRate * 0.7)}-${Math.round(userProfile.maxHeartRate * 0.85)} bpm) for optimal ${exerciseType} performance.`,
                 icon: Heart,
                 color: 'text-red-500',
-                bgColor: 'bg-red-50'
+                bgColor: 'bg-red-50',
+                actionable: false
             });
         } else if (biometrics.heartRateZone === 'cardio') {
             recs.push({
                 id: 'hr-cardio',
                 type: 'performance',
-                title: 'Optimal Cardio Zone',
-                message: 'Perfect! You\'re in the cardio zone for maximum benefit',
+                title: 'Perfect Cardio Zone Achievement',
+                message: `Excellent! Your ${biometrics.heartRate} bpm is ideal for your age (${userProfile.age}). This zone maximizes fat burn and cardiovascular benefits for ${exerciseType}.`,
                 icon: Heart,
                 color: 'text-green-500',
-                bgColor: 'bg-green-50'
+                bgColor: 'bg-green-50',
+                actionable: false
             });
         }
 
-        // Energy recommendations
-        if (biometrics.glycogenStores < 80) {
+        // ACTIONABLE ENERGY
+        if (biometrics.glycogenStores < 70 && !recommendations.find(r => r.id === 'energy' && r.completed)) {
+            const baseCarbs = userProfile.gender === 'female' ? 25 : 30;
+            const intensityMultiplier = {
+                running: 1.2, cycling: 1.0, swimming: 1.1, strength: 0.8, yoga: 0.5
+            }[exerciseType];
+            const recommendedCarbs = Math.round(baseCarbs * intensityMultiplier);
+            
             recs.push({
                 id: 'energy',
                 type: 'energy',
-                title: 'Energy Management',
-                message: 'Consider consuming 15-30g carbs to maintain energy',
+                title: `Energy Management for ${userProfile.gender.charAt(0).toUpperCase() + userProfile.gender.slice(1)} Athletes`,
+                message: `${userProfile.name}, consume ${recommendedCarbs}g quick carbs (banana, sports drink). ${userProfile.gender === 'female' ? 'Women' : 'Men'} typically need this amount during ${exerciseType} sessions lasting ${Math.floor(exerciseDuration/60)}+ minutes.`,
                 icon: Zap,
                 color: 'text-yellow-500',
-                bgColor: 'bg-yellow-50'
+                bgColor: 'bg-yellow-50',
+                actionable: true,
+                value: recommendedCarbs
             });
         }
 
-        // Temperature management
-        if (biometrics.coreTemp > 38.0) {
+        // ACTIONABLE TEMPERATURE
+        if (biometrics.coreTemp > 38.0 && !recommendations.find(r => r.id === 'temp' && r.completed)) {
             recs.push({
                 id: 'temp',
                 type: 'cooling',
                 title: 'Temperature Rising',
-                message: 'Core temperature elevated. Consider cooling strategies',
+                message: `${userProfile.name}, core temp elevated to ${biometrics.coreTemp.toFixed(1)}°C. Take a 2-minute cool-down break.`,
                 icon: Thermometer,
                 color: 'text-orange-500',
-                bgColor: 'bg-orange-50'
+                bgColor: 'bg-orange-50',
+                actionable: true,
+                value: 2
             });
         }
 
-        setRecommendations(recs);
+        // Keep completed recommendations
+        const completedRecs = recommendations.filter(r => r.completed);
+        setRecommendations([...recs, ...completedRecs]);
     };
 
     const updateHistoricalData = () => {
@@ -261,12 +305,59 @@ const BioSyncAdvanced = () => {
             const newEntry = {
                 time: exerciseDuration,
                 heartRate: biometrics.heartRate,
-                hydration: Math.round(biometrics.hydrationLevel),
-                glycogen: Math.round(biometrics.glycogenStores),
-                fatigue: Math.round(biometrics.fatigue || 0)
+                hydration: biometrics.hydrationLevel,
+                glycogen: biometrics.glycogenStores,
+                fatigue: biometrics.fatigue || 0
             };
-            return [...prev.slice(-59), newEntry];
+            const newData = [...prev, newEntry];
+            return newData.slice(-30); // Keep only last 30 points
         });
+    };
+
+    // New function to handle recommendation completion
+    const completeRecommendation = (recId) => {
+        const rec = recommendations.find(r => r.id === recId);
+        if (!rec || !rec.actionable || rec.completed) return;
+
+        // Mark as completed
+        setRecommendations(prev => prev.map(r => 
+            r.id === recId ? {...r, completed: true} : r
+        ));
+
+        // Apply the effect
+        setBiometrics(prev => {
+            switch(rec.type) {
+                case 'hydration':
+                    showNotification('💧 Hydration restored! Great job staying hydrated.');
+                    return {...prev, hydrationLevel: Math.min(100, prev.hydrationLevel + 15), recentlyHydrated: true};
+                case 'energy':
+                    showNotification('⚡ Energy boosted! You\'re refueled and ready to go.');
+                    return {...prev, glycogenStores: Math.min(100, prev.glycogenStores + 20), recentlyEnergized: true};
+                case 'cooling':
+                    showNotification('🌡️ Temperature normalized! Good recovery.');
+                    return {...prev, coreTemp: Math.max(37.0, prev.coreTemp - 0.5), heartRate: Math.max(72, prev.heartRate - 10)};
+                default:
+                    return prev;
+            }
+        });
+    };
+
+    // Notification function
+    const showNotification = (message) => {
+        const notification = document.createElement('div');
+        notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-pulse';
+        notification.style.animation = 'slideIn 0.3s ease-out';
+        notification.innerHTML = `
+            <div class="flex items-center">
+                <span class="text-xl mr-2">✅</span>
+                <span>${message}</span>
+            </div>
+        `;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.remove();
+        }, 3000);
     };
 
     const handleProfileSubmit = (e) => {
@@ -288,7 +379,7 @@ const BioSyncAdvanced = () => {
                     cholesterol: Math.random() > 0.6 ? 'normal' : 'high',
                     hemoglobin: Math.random() > 0.8 ? 'normal' : 'low',
                     vitamins: { d: Math.random() > 0.5 ? 'normal' : 'low' },
-                    recommendations: ['Monitor blood sugar during exercise', 'Consider vitamin D supplementation']
+                    recommendations: ['Monitor blood sugar during exercise', 'Consider vitamin D supplementation', 'Stay hydrated during workouts']
                 };
                 setReportAnalysis(analysis);
             }, 2000);
@@ -322,7 +413,8 @@ const BioSyncAdvanced = () => {
                     <Brain className="text-6xl mx-auto mb-6 block" />
                     <h1 className="text-4xl font-bold text-white mb-4 text-center">Welcome to BioSync</h1>
                     <p className="text-white/80 text-lg mb-8 text-center">
-                        Let's personalize your nutrition optimization experience. We'll collect your personal information and optionally analyze your medical reports for the most accurate recommendations.
+                        AI-powered nutrition optimization that adapts to your unique physiology. 
+                        Let's personalize your experience with your health data.
                     </p>
                     <div className="flex items-center justify-center space-x-4 mb-8">
                         <Shield className="text-3xl" />
@@ -330,7 +422,7 @@ const BioSyncAdvanced = () => {
                     </div>
                     <button
                         onClick={() => setCurrentStep('profile')}
-                        className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold py-4 rounded-xl hover:from-blue-600 hover:to-purple-600"
+                        className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold py-4 rounded-xl hover:from-blue-600 hover:to-purple-600 transition-all"
                     >
                         Get Started
                     </button>
@@ -356,6 +448,7 @@ const BioSyncAdvanced = () => {
                                         className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                                         value={userProfile.name}
                                         onChange={(e) => setUserProfile({...userProfile, name: e.target.value})}
+                                        placeholder="John Doe"
                                     />
                                 </div>
                                 <div>
@@ -368,6 +461,7 @@ const BioSyncAdvanced = () => {
                                         className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                                         value={userProfile.age}
                                         onChange={(e) => setUserProfile({...userProfile, age: e.target.value})}
+                                        placeholder="25"
                                     />
                                 </div>
                             </div>
@@ -376,7 +470,7 @@ const BioSyncAdvanced = () => {
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
                                 <div className="flex space-x-4">
                                     {['male', 'female', 'other'].map(gender => (
-                                        <label key={gender} className="flex items-center">
+                                        <label key={gender} className="flex items-center cursor-pointer">
                                             <input
                                                 type="radio"
                                                 name="gender"
@@ -404,6 +498,7 @@ const BioSyncAdvanced = () => {
                                         className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                                         value={userProfile.weight}
                                         onChange={(e) => setUserProfile({...userProfile, weight: e.target.value})}
+                                        placeholder="70"
                                     />
                                 </div>
                                 <div>
@@ -416,6 +511,7 @@ const BioSyncAdvanced = () => {
                                         className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                                         value={userProfile.height}
                                         onChange={(e) => setUserProfile({...userProfile, height: e.target.value})}
+                                        placeholder="175"
                                     />
                                 </div>
                             </div>
@@ -439,9 +535,9 @@ const BioSyncAdvanced = () => {
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Fitness Goals</label>
-                                <div className="space-y-2">
-                                    {['Weight Loss', 'Muscle Gain', 'Endurance', 'General Health', 'Performance'].map(goal => (
-                                        <label key={goal} className="flex items-center">
+                                <div className="grid grid-cols-2 gap-2">
+                                    {['Weight Loss', 'Muscle Gain', 'Endurance', 'General Health', 'Performance', 'Recovery'].map(goal => (
+                                        <label key={goal} className="flex items-center cursor-pointer">
                                             <input
                                                 type="checkbox"
                                                 className="mr-2"
@@ -462,9 +558,9 @@ const BioSyncAdvanced = () => {
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Medical Conditions</label>
-                                <div className="space-y-2">
-                                    {['None', 'Diabetes', 'Hypertension', 'Heart Disease', 'Asthma'].map(condition => (
-                                        <label key={condition} className="flex items-center">
+                                <div className="grid grid-cols-2 gap-2">
+                                    {['None', 'Diabetes', 'Hypertension', 'Heart Disease', 'Asthma', 'Thyroid'].map(condition => (
+                                        <label key={condition} className="flex items-center cursor-pointer">
                                             <input
                                                 type="checkbox"
                                                 className="mr-2"
@@ -485,7 +581,7 @@ const BioSyncAdvanced = () => {
 
                             {userProfile.bmi && (
                                 <div className="bg-blue-50 rounded-lg p-4">
-                                    <h3 className="font-semibold text-gray-800 mb-2">Your Calculated Metrics:</h3>
+                                    <h3 className="font-semibold text-gray-800 mb-2">📊 Your Calculated Metrics:</h3>
                                     <div className="grid grid-cols-3 gap-4 text-sm">
                                         <div><span className="text-gray-600">BMI:</span> <span className="font-semibold ml-2">{userProfile.bmi}</span></div>
                                         <div><span className="text-gray-600">BMR:</span> <span className="font-semibold ml-2">{userProfile.bmr} cal/day</span></div>
@@ -496,7 +592,7 @@ const BioSyncAdvanced = () => {
 
                             <button
                                 type="submit"
-                                className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold py-3 rounded-lg hover:from-blue-600 hover:to-purple-600"
+                                className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold py-3 rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all"
                             >
                                 Continue to Medical Information
                             </button>
@@ -515,10 +611,11 @@ const BioSyncAdvanced = () => {
                     <div className="bg-white rounded-2xl shadow-xl p-8">
                         <h2 className="text-3xl font-bold text-gray-800 mb-6">Medical Information</h2>
                         <p className="text-gray-600 mb-8">
-                            Upload your recent medical report for personalized nutrition recommendations. This is optional but helps us provide more accurate guidance.
+                            Upload your recent medical report for personalized nutrition recommendations. 
+                            This is optional but helps us provide more accurate guidance.
                         </p>
 
-                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6">
+                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6 hover:border-blue-400 transition-colors">
                             <Upload className="text-5xl mx-auto mb-4" />
                             <h3 className="text-lg font-semibold mb-2">Upload Medical Report</h3>
                             <p className="text-sm text-gray-600 mb-4">PDF, JPG, or PNG (Max 10MB)</p>
@@ -531,7 +628,7 @@ const BioSyncAdvanced = () => {
                             />
                             <label
                                 htmlFor="medical-upload"
-                                className="inline-block bg-blue-500 text-white px-6 py-2 rounded-lg cursor-pointer hover:bg-blue-600"
+                                className="inline-block bg-blue-500 text-white px-6 py-2 rounded-lg cursor-pointer hover:bg-blue-600 transition-all"
                             >
                                 Choose File
                             </label>
@@ -551,7 +648,7 @@ const BioSyncAdvanced = () => {
 
                         {reportAnalysis && (
                             <div className="bg-blue-50 rounded-lg p-6 mb-6">
-                                <h3 className="font-semibold text-lg mb-4">Medical Report Analysis</h3>
+                                <h3 className="font-semibold text-lg mb-4">🔬 Medical Report Analysis</h3>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="flex justify-between bg-white p-3 rounded">
                                         <span>Glucose:</span>
@@ -611,7 +708,7 @@ const BioSyncAdvanced = () => {
         );
     }
 
-    // MAIN DASHBOARD
+// MAIN DASHBOARD
     return (
         <div className="min-h-screen bg-gray-50">
             <header className="bg-white shadow-sm border-b">
@@ -631,231 +728,276 @@ const BioSyncAdvanced = () => {
                                 className="px-4 py-2 border rounded-lg"
                                 disabled={isExercising}
                             >
-                                <option value="running">Running</option>
-                                <option value="cycling">Cycling</option>
-                                <option value="swimming">Swimming</option>
-                                <option value="strength">Strength</option>
-                                <option value="yoga">Yoga</option>
-                           </select>
-                           <button
-                               onClick={() => setIsExercising(!isExercising)}
-                               className={`px-6 py-2 rounded-lg font-semibold text-white transition-colors ${
-                                   isExercising 
-                                       ? 'bg-red-500 hover:bg-red-600' 
-                                       : 'bg-blue-500 hover:bg-blue-600'
-                               }`}
-                           >
-                               {isExercising ? 'Stop' : 'Start'}
-                           </button>
-                           {isExercising && (
-                               <div className="font-mono text-lg font-semibold">
-                                   {formatDuration(exerciseDuration)}
-                               </div>
-                           )}
-                       </div>
-                   </div>
-               </div>
-           </header>
+                                <option value="running">🏃 Running</option>
+                                <option value="cycling">🚴 Cycling</option>
+                                <option value="swimming">🏊 Swimming</option>
+                                <option value="strength">💪 Strength</option>
+                                <option value="yoga">🧘 Yoga</option>
+                            </select>
+                            <button
+                                onClick={() => setIsExercising(!isExercising)}
+                                className={`px-6 py-2 rounded-lg font-semibold text-white transition-colors ${
+                                    isExercising 
+                                        ? 'bg-red-500 hover:bg-red-600' 
+                                        : 'bg-green-500 hover:bg-green-600'
+                                }`}
+                            >
+                                {isExercising ? '⏹️ Stop' : '▶️ Start'}
+                            </button>
+                            {isExercising && (
+                                <div className="font-mono text-lg font-semibold animate-pulse">
+                                    {formatDuration(exerciseDuration)}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </header>
 
-           {/* User Stats Bar */}
-           <div className="bg-blue-50 border-b px-4 py-3">
-               <div className="max-w-7xl mx-auto flex items-center justify-between text-sm">
-                   <div className="flex items-center space-x-6">
-                       <span><strong>Age:</strong> {userProfile.age}</span>
-                       <span><strong>BMI:</strong> {userProfile.bmi}</span>
-                       <span><strong>Activity:</strong> {userProfile.activityLevel}</span>
-                       <span><strong>Max HR:</strong> {userProfile.maxHeartRate} bpm</span>
-                       {isExercising && (
-                           <span className="text-green-600 font-semibold">
-                               🟢 Exercise Active
-                           </span>
-                       )}
-                   </div>
-               </div>
-           </div>
+            {/* User Stats Bar */}
+            <div className="bg-blue-50 border-b px-4 py-3">
+                <div className="max-w-7xl mx-auto flex items-center justify-between text-sm">
+                    <div className="flex items-center space-x-6">
+                        <span><strong>Age:</strong> {userProfile.age}</span>
+                        <span><strong>BMI:</strong> {userProfile.bmi}</span>
+                        <span><strong>Activity:</strong> {userProfile.activityLevel}</span>
+                        <span><strong>Max HR:</strong> {userProfile.maxHeartRate} bpm</span>
+                        {isExercising && (
+                            <span className="text-green-600 font-semibold animate-pulse">
+                                🟢 Exercise Active
+                            </span>
+                        )}
+                    </div>
+                </div>
+            </div>
 
-           {/* Alerts */}
-           {alerts.length > 0 && (
-               <div className="bg-red-50 border-b px-4 py-3">
-                   <div className="max-w-7xl mx-auto flex items-center">
-                       <AlertCircle className="text-red-600 mr-2" />
-                       <p className="text-red-800">{alerts[0].message}</p>
-                   </div>
-               </div>
-           )}
+            {/* Alerts */}
+            {alerts.length > 0 && (
+                <div className="bg-red-50 border-b px-4 py-3">
+                    <div className="max-w-7xl mx-auto flex items-center">
+                        <AlertCircle className="text-red-600 mr-2" />
+                        <p className="text-red-800">{alerts[0].message}</p>
+                    </div>
+                </div>
+            )}
 
-           {/* Dashboard */}
-           <main className="max-w-7xl mx-auto px-4 py-8">
-               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                   {/* Metrics */}
-                   <div className="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4">
-                       <div className="bg-red-50 rounded-xl p-4 transition-all hover:shadow-lg">
-                           <Heart className="text-2xl mb-2" />
-                           <div className="text-2xl font-bold">{biometrics.heartRate}</div>
-                           <div className="text-sm text-gray-600">Heart Rate</div>
-                           <div className={`text-xs mt-1 px-2 py-1 rounded-full inline-block ${getZoneColor(biometrics.heartRateZone)}`}>
-                               {biometrics.heartRateZone}
-                           </div>
-                           <div className="text-xs text-gray-500 mt-1">
-                               Target: {Math.round((userProfile.maxHeartRate || 190) * 0.7)}-{Math.round((userProfile.maxHeartRate || 190) * 0.85)}
-                           </div>
-                       </div>
-                       <div className="bg-blue-50 rounded-xl p-4 transition-all hover:shadow-lg">
-                           <Droplets className="text-2xl mb-2" />
-                           <div className="text-2xl font-bold">{Math.round(biometrics.hydrationLevel)}%</div>
-                           <div className="text-sm text-gray-600">Hydration</div>
-                           <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                               <div 
-                                   className="bg-blue-500 h-2 rounded-full transition-all duration-500"
-                                   style={{ width: `${biometrics.hydrationLevel}%` }}
-                               />
-                           </div>
-                       </div>
-                       <div className="bg-yellow-50 rounded-xl p-4 transition-all hover:shadow-lg">
-                           <Zap className="text-2xl mb-2" />
-                           <div className="text-2xl font-bold">{Math.round(biometrics.glycogenStores)}%</div>
-                           <div className="text-sm text-gray-600">Glycogen</div>
-                           <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                               <div 
-                                   className="bg-yellow-500 h-2 rounded-full transition-all duration-500"
-                                   style={{ width: `${biometrics.glycogenStores}%` }}
-                               />
-                           </div>
-                       </div>
-                       <div className="bg-orange-50 rounded-xl p-4 transition-all hover:shadow-lg">
-                           <Thermometer className="text-2xl mb-2" />
-                           <div className="text-2xl font-bold">{biometrics.coreTemp.toFixed(1)}°C</div>
-                           <div className="text-sm text-gray-600">Core Temp</div>
-                           <div className={`text-xs mt-1 ${biometrics.coreTemp > 38.0 ? 'text-red-600' : 'text-green-600'}`}>
-                               {biometrics.coreTemp > 38.0 ? '⚠️ Elevated' : '✓ Normal'}
-                           </div>
-                       </div>
-                   </div>
+            {/* Dashboard */}
+            <main className="max-w-7xl mx-auto px-4 py-8">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Metrics */}
+                    <div className="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-red-50 rounded-xl p-4 transition-all hover:shadow-lg">
+                            <Heart className="text-2xl mb-2" />
+                            <div className="text-2xl font-bold">{biometrics.heartRate}</div>
+                            <div className="text-sm text-gray-600">Heart Rate</div>
+                            <div className={`text-xs mt-1 px-2 py-1 rounded-full inline-block ${getZoneColor(biometrics.heartRateZone)}`}>
+                                {biometrics.heartRateZone}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                                Target: {Math.round((userProfile.maxHeartRate || 190) * 0.7)}-{Math.round((userProfile.maxHeartRate || 190) * 0.85)}
+                            </div>
+                        </div>
+                        <div className="bg-blue-50 rounded-xl p-4 transition-all hover:shadow-lg">
+                            <Droplets className="text-2xl mb-2" />
+                            <div className="text-2xl font-bold">{Math.round(biometrics.hydrationLevel)}%</div>
+                            <div className="text-sm text-gray-600">Hydration</div>
+                            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                <div 
+                                    className="bg-blue-500 h-2 rounded-full transition-all duration-500"
+                                    style={{ width: `${biometrics.hydrationLevel}%` }}
+                                />
+                            </div>
+                        </div>
+                        <div className="bg-yellow-50 rounded-xl p-4 transition-all hover:shadow-lg">
+                            <Zap className="text-2xl mb-2" />
+                            <div className="text-2xl font-bold">{Math.round(biometrics.glycogenStores)}%</div>
+                            <div className="text-sm text-gray-600">Glycogen</div>
+                            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                <div 
+                                    className="bg-yellow-500 h-2 rounded-full transition-all duration-500"
+                                    style={{ width: `${biometrics.glycogenStores}%` }}
+                                />
+                            </div>
+                        </div>
+                        <div className="bg-orange-50 rounded-xl p-4 transition-all hover:shadow-lg">
+                            <Thermometer className="text-2xl mb-2" />
+                            <div className="text-2xl font-bold">{biometrics.coreTemp.toFixed(1)}°C</div>
+                            <div className="text-sm text-gray-600">Core Temp</div>
+                            <div className={`text-xs mt-1 ${biometrics.coreTemp > 38.0 ? 'text-red-600' : 'text-green-600'}`}>
+                                {biometrics.coreTemp > 38.0 ? '⚠️ Elevated' : '✓ Normal'}
+                            </div>
+                        </div>
+                    </div>
 
-                   {/* AI Recommendations */}
-                   <div className="bg-white rounded-xl shadow-lg p-6">
-                       <h3 className="text-lg font-semibold mb-4 flex items-center">
-                           <Brain className="mr-2" />
-                           AI Recommendations
-                       </h3>
-                       {recommendations.length > 0 ? (
-                           <div className="space-y-3">
-                               {recommendations.map(rec => (
-                                   <div key={rec.id} className={`${rec.bgColor} rounded-lg p-3 transition-all hover:shadow-md`}>
-                                       <div className="flex items-start space-x-3">
-                                           <rec.icon className="text-xl flex-shrink-0 mt-0.5" />
-                                           <div>
-                                               <h4 className="font-semibold text-sm">{rec.title}</h4>
-                                               <p className="text-xs text-gray-700">{rec.message}</p>
-                                           </div>
-                                       </div>
-                                   </div>
-                               ))}
-                           </div>
-                       ) : (
-                           <div className="text-center py-8">
-                               <Activity className="text-4xl mx-auto mb-2 text-gray-400" />
-                               <p className="text-gray-500">
-                                   {isExercising 
-                                       ? 'AI monitoring your performance...' 
-                                       : 'Start exercising to receive AI recommendations'}
-                               </p>
-                           </div>
-                       )}
+                    {/* Enhanced AI Recommendations with Action Buttons */}
+                    <div className="bg-white rounded-xl shadow-lg p-6">
+                        <h3 className="text-lg font-semibold mb-4 flex items-center">
+                            <Brain className="mr-2" />
+                            AI Recommendations
+                        </h3>
+                        {recommendations.length > 0 ? (
+                            <div className="space-y-3 max-h-96 overflow-y-auto">
+                                {recommendations.map(rec => (
+                                    <div 
+                                        key={rec.id} 
+                                        className={`${rec.bgColor} rounded-lg p-3 transition-all hover:shadow-md ${rec.completed ? 'opacity-60' : ''}`}
+                                    >
+                                        <div className="flex items-start space-x-3">
+                                            <rec.icon className="text-xl flex-shrink-0 mt-0.5" />
+                                            <div className="flex-1">
+                                                <h4 className={`font-semibold text-sm ${rec.completed ? 'line-through' : ''}`}>
+                                                    {rec.title}
+                                                </h4>
+                                                <p className="text-xs text-gray-700 mt-1">{rec.message}</p>
+                                                {rec.actionable && !rec.completed && (
+                                                    <button
+                                                        onClick={() => completeRecommendation(rec.id)}
+                                                        className="mt-2 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-all"
+                                                    >
+                                                        ✓ Done
+                                                    </button>
+                                                )}
+                                                {rec.completed && (
+                                                    <div className="mt-2 text-xs text-green-600 font-semibold">
+                                                        ✅ Completed
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-8">
+                                <Activity className="text-4xl mx-auto mb-2 text-gray-400" />
+                                <p className="text-gray-500">
+                                    {isExercising 
+                                        ? 'AI monitoring your performance...' 
+                                        : 'Start exercising to receive AI recommendations'}
+                                </p>
+                            </div>
+                        )}
 
-                       {/* Medical-based recommendations */}
-                       {reportAnalysis && reportAnalysis.recommendations && (
-                           <div className="mt-4 pt-4 border-t">
-                               <h4 className="font-semibold text-sm mb-2">From your medical report:</h4>
-                               <ul className="text-xs text-gray-600 space-y-1">
-                                   {reportAnalysis.recommendations.map((rec, i) => (
-                                       <li key={i} className="flex items-start">
-                                           <span className="mr-2">•</span>
-                                           <span>{rec}</span>
-                                       </li>
-                                   ))}
-                               </ul>
-                           </div>
-                       )}
-                   </div>
+                        {/* Medical-based recommendations */}
+                        {reportAnalysis && reportAnalysis.recommendations && (
+                            <div className="mt-4 pt-4 border-t">
+                                <h4 className="font-semibold text-sm mb-2">📋 From your medical report:</h4>
+                                <ul className="text-xs text-gray-600 space-y-1">
+                                    {reportAnalysis.recommendations.map((rec, i) => (
+                                        <li key={i} className="flex items-start">
+                                            <span className="mr-2">•</span>
+                                            <span>{rec}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+                    </div>
 
-                   {/* Performance Chart */}
-                   <div className="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">
-                       <h3 className="text-lg font-semibold mb-4 flex items-center">
-                           <BarChart3 className="mr-2" />
-                           Performance Tracking
-                       </h3>
-                       <SimpleChart data={historicalData} />
-                       {isExercising && historicalData.length > 0 && (
-                           <div className="mt-4 grid grid-cols-3 gap-4 text-center">
-                               <div>
-                                   <p className="text-sm text-gray-600">Avg Heart Rate</p>
-                                   <p className="text-lg font-semibold text-red-600">
-                                       {Math.round(historicalData.reduce((sum, d) => sum + d.heartRate, 0) / historicalData.length)}
-                                   </p>
-                               </div>
-                               <div>
-                                   <p className="text-sm text-gray-600">Calories Burned</p>
-                                   <p className="text-lg font-semibold text-orange-600">
-                                       {Math.round(exerciseDuration * 0.1 * (parseFloat(userProfile.weight) || 70) / 60)}
-                                   </p>
-                               </div>
-                               <div>
-                                   <p className="text-sm text-gray-600">Sweat Loss</p>
-                                   <p className="text-lg font-semibold text-blue-600">
-                                       {(biometrics.sweatRate * exerciseDuration / 3600).toFixed(1)}L
-                                   </p>
-                               </div>
-                           </div>
-                       )}
-                   </div>
+                    {/* Enhanced Performance Chart */}
+                    <div className="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">
+                        <h3 className="text-lg font-semibold mb-4 flex items-center">
+                            <BarChart3 className="mr-2" />
+                            Real-Time Performance Tracking
+                        </h3>
+                        <SimpleChart data={historicalData} />
+                        {isExercising && historicalData.length > 0 && (
+                            <div className="mt-4 grid grid-cols-4 gap-4 text-center">
+                                <div>
+                                    <p className="text-sm text-gray-600">Avg Heart Rate</p>
+                                    <p className="text-lg font-semibold text-red-600">
+                                        {Math.round(historicalData.reduce((sum, d) => sum + d.heartRate, 0) / historicalData.length)}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-600">Calories Burned</p>
+                                    <p className="text-lg font-semibold text-orange-600">
+                                        {Math.round(exerciseDuration * 0.1 * (parseFloat(userProfile.weight) || 70) / 60)}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-600">Avg Hydration</p>
+                                    <p className="text-lg font-semibold text-blue-600">
+                                        {Math.round(historicalData.reduce((sum, d) => sum + d.hydration, 0) / historicalData.length)}%
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-600">Sweat Loss</p>
+                                    <p className="text-lg font-semibold text-purple-600">
+                                        {(biometrics.sweatRate * exerciseDuration / 3600).toFixed(1)}L
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
 
-                   {/* Personal Stats */}
-                   <div className="bg-white rounded-xl shadow-lg p-6">
-                       <h3 className="text-lg font-semibold mb-4 flex items-center">
-                           <User className="mr-2" />
-                           Your Personal Stats
-                       </h3>
-                       <div className="space-y-3">
-                           <div className="flex justify-between">
-                               <span className="text-gray-600">Daily Calories:</span>
-                               <span className="font-semibold">
-                                   {Math.round((userProfile.bmr || 1680) * 1.5)} cal
-                               </span>
-                           </div>
-                           <div className="flex justify-between">
-                               <span className="text-gray-600">Water Needs:</span>
-                               <span className="font-semibold">
-                                   {Math.round((parseFloat(userProfile.weight) || 70) * 35)} ml/day
-                               </span>
-                           </div>
-                           <div className="flex justify-between">
-                               <span className="text-gray-600">Fitness Goals:</span>
-                               <span className="font-semibold text-sm">
-                                   {userProfile.fitnessGoals.join(', ') || 'General Health'}
-                               </span>
-                           </div>
-                           <div className="flex justify-between">
-                               <span className="text-gray-600">Exercise Status:</span>
-                               <span className={`font-semibold ${isExercising ? 'text-green-600' : 'text-gray-600'}`}>
-                                   {isExercising ? '🏃 Active' : '⏸️ Resting'}
-                               </span>
-                           </div>
-                           {userProfile.medicalConditions.length > 0 && userProfile.medicalConditions[0] !== 'None' && (
-                               <div className="flex justify-between">
-                                   <span className="text-gray-600">Conditions:</span>
-                                   <span className="font-semibold text-sm text-red-600">
-                                       {userProfile.medicalConditions.join(', ')}
-                                   </span>
-                               </div>
-                           )}
-                       </div>
-                   </div>
-               </div>
-           </main>
-       </div>
-   );
+                    {/* Personal Stats */}
+                    <div className="bg-white rounded-xl shadow-lg p-6">
+                        <h3 className="text-lg font-semibold mb-4 flex items-center">
+                            <User className="mr-2" />
+                            Your Personal Stats
+                        </h3>
+                        <div className="space-y-3">
+                            <div className="flex justify-between p-2 hover:bg-gray-50 rounded">
+                                <span className="text-gray-600">🔥 Daily Calories:</span>
+                                <span className="font-semibold">
+                                    {Math.round((userProfile.bmr || 1680) * 1.5)} cal
+                                </span>
+                            </div>
+                            <div className="flex justify-between p-2 hover:bg-gray-50 rounded">
+                                <span className="text-gray-600">💧 Water Needs:</span>
+                                <span className="font-semibold">
+                                    {Math.round((parseFloat(userProfile.weight) || 70) * 35)} ml/day
+                                </span>
+                            </div>
+                            <div className="flex justify-between p-2 hover:bg-gray-50 rounded">
+                                <span className="text-gray-600">🎯 Fitness Goals:</span>
+                                <span className="font-semibold text-sm">
+                                    {userProfile.fitnessGoals.slice(0, 2).join(', ') || 'General Health'}
+                                </span>
+                            </div>
+                            <div className="flex justify-between p-2 hover:bg-gray-50 rounded">
+                                <span className="text-gray-600">📈 Exercise Status:</span>
+                                <span className={`font-semibold ${isExercising ? 'text-green-600' : 'text-gray-600'}`}>
+                                    {isExercising ? '🏃 Active' : '⏸️ Resting'}
+                                </span>
+                            </div>
+                            {userProfile.medicalConditions.length > 0 && userProfile.medicalConditions[0] !== 'None' && (
+                                <div className="flex justify-between p-2 bg-yellow-50 rounded">
+                                    <span className="text-gray-600">⚠️ Conditions:</span>
+                                    <span className="font-semibold text-sm text-red-600">
+                                        {userProfile.medicalConditions.join(', ')}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    );
 };
+
+// Add CSS for animations
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes grow {
+        from { height: 0; }
+        to { height: auto; }
+    }
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    .animate-pulse {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: .5; }
+    }
+`;
+document.head.appendChild(style);
 
 // Render the app
 const root = ReactDOM.createRoot(document.getElementById('root'));
