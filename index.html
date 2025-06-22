@@ -94,35 +94,183 @@
         
         function updateRecommendations() {
             recommendations = [];
+            const exerciseType = document.getElementById('exerciseType') ? document.getElementById('exerciseType').value : 'running';
             
-            // Always show status
+            // 1. PERSONALIZED STATUS with user-specific insights
             recommendations.push({
-                title: 'AI System Active',
-                message: `Monitoring your exercise - ${exerciseDuration}s elapsed`,
+                title: `${userProfile.name}'s AI Analysis`,
+                message: `Monitoring your ${exerciseType} session - ${Math.floor(exerciseDuration/60)}:${(exerciseDuration%60).toString().padStart(2,'0')} elapsed. Heart rate in ${biometrics.heartRateZone} zone.`,
                 bgColor: 'bg-blue-50'
             });
-            
+
+            // 2. PERSONALIZED HYDRATION based on weight, exercise type, and sweat rate
             if (biometrics.hydrationLevel < 90) {
+                const bodyWeight = parseFloat(userProfile.weight) || 70;
+                const waterNeeded = Math.round((100 - biometrics.hydrationLevel) * bodyWeight * 0.015);
+                const exerciseMultiplier = {
+                    running: 1.3, cycling: 1.0, swimming: 0.8, strength: 1.1, yoga: 0.6
+                }[exerciseType];
+                const adjustedWater = Math.round(waterNeeded * exerciseMultiplier);
+                
+                let urgency = '';
+                if (biometrics.hydrationLevel < 70) urgency = ' URGENT:';
+                else if (biometrics.hydrationLevel < 80) urgency = ' Important:';
+                
                 recommendations.push({
-                    title: 'Hydration Alert',
-                    message: 'Consider drinking water to maintain hydration',
-                    bgColor: 'bg-blue-50'
+                    title: `${urgency} Hydration for ${userProfile.activityLevel.charAt(0).toUpperCase() + userProfile.activityLevel.slice(1)} Athlete`,
+                    message: `${userProfile.name}, drink ${adjustedWater}ml water now. Your ${bodyWeight}kg body needs extra hydration during ${exerciseType}.`,
+                    bgColor: biometrics.hydrationLevel < 70 ? 'bg-red-50' : 'bg-blue-50'
                 });
             }
-            
+
+            // 3. AGE-SPECIFIC HEART RATE RECOMMENDATIONS
+            const hrPercent = (biometrics.heartRate - 72) / (userProfile.maxHeartRate - 72) * 100;
             if (biometrics.heartRateZone === 'peak') {
+                const ageGroup = userProfile.age < 25 ? 'young athlete' : userProfile.age > 50 ? 'experienced athlete' : 'athlete';
                 recommendations.push({
-                    title: 'Peak Zone Alert',
-                    message: 'You\'re in peak heart rate zone - consider reducing intensity',
+                    title: `Peak Zone Alert for ${userProfile.age}-year-old`,
+                    message: `${userProfile.name}, as a ${ageGroup}, reduce intensity to 70-85% max HR (${Math.round(userProfile.maxHeartRate * 0.7)}-${Math.round(userProfile.maxHeartRate * 0.85)} bpm) for optimal ${exerciseType} performance.`,
+                    bgColor: 'bg-red-50'
+                });
+            } else if (biometrics.heartRateZone === 'cardio') {
+                recommendations.push({
+                    title: 'Perfect Cardio Zone Achievement',
+                    message: `Excellent! Your ${biometrics.heartRate} bpm is ideal for your age (${userProfile.age}). This zone maximizes fat burn and cardiovascular benefits for ${exerciseType}.`,
+                    bgColor: 'bg-green-50'
+                });
+            }
+
+            // 4. GENDER-SPECIFIC ENERGY RECOMMENDATIONS
+            if (biometrics.glycogenStores < 70) {
+                const baseCarbs = userProfile.gender === 'female' ? 25 : 30;
+                const intensityMultiplier = {
+                    running: 1.2, cycling: 1.0, swimming: 1.1, strength: 0.8, yoga: 0.5
+                }[exerciseType];
+                const recommendedCarbs = Math.round(baseCarbs * intensityMultiplier);
+                
+                recommendations.push({
+                    title: `Energy Management for ${userProfile.gender.charAt(0).toUpperCase() + userProfile.gender.slice(1)} Athletes`,
+                    message: `${userProfile.name}, consume ${recommendedCarbs}g quick carbs (banana, sports drink). ${userProfile.gender === 'female' ? 'Women' : 'Men'} typically need this amount during ${exerciseType} sessions lasting ${Math.floor(exerciseDuration/60)}+ minutes.`,
+                    bgColor: 'bg-yellow-50'
+                });
+            }
+
+            // 5. FITNESS LEVEL SPECIFIC ADVICE
+            if (exerciseDuration > 300) { // 5+ minutes
+                let fitnessAdvice = '';
+                switch(userProfile.activityLevel) {
+                    case 'sedentary':
+                        fitnessAdvice = `Great job! As someone new to exercise, listen to your body. Your current pace is building endurance safely.`;
+                        break;
+                    case 'light':
+                        fitnessAdvice = `You're doing well! Your light activity background means gradual intensity increases will boost your fitness.`;
+                        break;
+                    case 'moderate':
+                        fitnessAdvice = `Perfect form! Your moderate fitness level allows for sustained effort. Consider interval training next.`;
+                        break;
+                    case 'active':
+                        fitnessAdvice = `Impressive stamina! Your active lifestyle shows - maintain this intensity for optimal gains.`;
+                        break;
+                    case 'athlete':
+                        fitnessAdvice = `Elite performance! Your athletic conditioning allows for high-intensity sustained effort.`;
+                        break;
+                }
+                
+                recommendations.push({
+                    title: `Personalized Coaching for ${userProfile.activityLevel.charAt(0).toUpperCase() + userProfile.activityLevel.slice(1)} Level`,
+                    message: `${userProfile.name}, ${fitnessAdvice} Current ${exerciseType} duration: ${Math.floor(exerciseDuration/60)} minutes.`,
+                    bgColor: 'bg-purple-50'
+                });
+            }
+
+            // 6. BODY COMPOSITION INSIGHTS (BMI-based)
+            if (userProfile.bmi && exerciseDuration > 600) { // 10+ minutes
+                const bmi = parseFloat(userProfile.bmi);
+                let bmiAdvice = '';
+                
+                if (bmi < 18.5) {
+                    bmiAdvice = `With your lean build (BMI ${userProfile.bmi}), focus on maintaining energy. Consider protein intake post-workout.`;
+                } else if (bmi >= 18.5 && bmi < 25) {
+                    bmiAdvice = `Your healthy BMI (${userProfile.bmi}) supports optimal performance. You're in the ideal range for ${exerciseType}.`;
+                } else if (bmi >= 25 && bmi < 30) {
+                    bmiAdvice = `Your BMI (${userProfile.bmi}) means longer sessions like this burn significant calories. Stay hydrated!`;
+                } else {
+                    bmiAdvice = `Extended ${exerciseType} sessions are excellent for your goals. Monitor intensity and stay well-hydrated.`;
+                }
+                
+                recommendations.push({
+                    title: `Body Composition Insights (BMI: ${userProfile.bmi})`,
+                    message: `${userProfile.name}, ${bmiAdvice}`,
+                    bgColor: 'bg-indigo-50'
+                });
+            }
+
+            // 7. TEMPERATURE & SAFETY for different ages/conditions
+            if (biometrics.coreTemp > 37.8) {
+                const ageWarning = userProfile.age > 50 ? ' Especially important at your age.' : '';
+                recommendations.push({
+                    title: `Temperature Safety Alert`,
+                    message: `${userProfile.name}, core temp elevated to ${biometrics.coreTemp.toFixed(1)}°C. Cool down gradually, find shade, and sip cool water.${ageWarning}`,
                     bgColor: 'bg-red-50'
                 });
             }
-            
-            if (biometrics.glycogenStores < 70) {
+
+            // 8. TIME-BASED MOTIVATIONAL COACHING
+            if (exerciseDuration === 300) { // Exactly 5 minutes
                 recommendations.push({
-                    title: 'Energy Alert',
-                    message: 'Consider consuming carbs to maintain energy levels',
-                    bgColor: 'bg-yellow-50'
+                    title: `5-Minute Milestone! 🎉`,
+                    message: `${userProfile.name}, you've hit 5 minutes! Your ${userProfile.activityLevel} fitness level is showing. Keep this ${exerciseType} pace for maximum benefit.`,
+                    bgColor: 'bg-green-50'
+                });
+            } else if (exerciseDuration === 600) { // 10 minutes
+                recommendations.push({
+                    title: `10-Minute Achievement! 🏆`,
+                    message: `Outstanding, ${userProfile.name}! 10 minutes of ${exerciseType} is burning approximately ${Math.round(exerciseDuration * 0.15 * parseFloat(userProfile.weight) / 60)} calories for your ${userProfile.weight}kg body.`,
+                    bgColor: 'bg-green-50'
+                });
+            } else if (exerciseDuration === 900) { // 15 minutes
+                recommendations.push({
+                    title: `Quarter-Hour Champion! 💪`,
+                    message: `${userProfile.name}, 15 minutes shows serious dedication! Your heart rate efficiency (${biometrics.heartRate} bpm) demonstrates your ${userProfile.activityLevel} conditioning.`,
+                    bgColor: 'bg-green-50'
+                });
+            }
+
+            // 9. EXERCISE-SPECIFIC TECHNIQUE TIPS
+            if (exerciseDuration > 180 && exerciseDuration % 120 === 0) { // Every 2 minutes after 3 min
+                let techniqueTip = '';
+                switch(exerciseType) {
+                    case 'running':
+                        techniqueTip = 'Focus on midfoot landing and 180 steps/minute cadence. Breathe rhythmically with your stride.';
+                        break;
+                    case 'cycling':
+                        techniqueTip = 'Maintain 80-100 RPM cadence. Keep your core engaged and shoulders relaxed.';
+                        break;
+                    case 'swimming':
+                        techniqueTip = 'Focus on long, smooth strokes. Breathe bilaterally every 3 strokes for optimal oxygen.';
+                        break;
+                    case 'strength':
+                        techniqueTip = 'Control the eccentric (lowering) phase. Rest 30-90 seconds between sets.';
+                        break;
+                    case 'yoga':
+                        techniqueTip = 'Sync movement with breath. Hold poses for 5-8 breaths for flexibility gains.';
+                        break;
+                }
+                
+                recommendations.push({
+                    title: `${exerciseType.charAt(0).toUpperCase() + exerciseType.slice(1)} Technique Optimization`,
+                    message: `${userProfile.name}, ${techniqueTip} Your current form is supporting your ${userProfile.activityLevel} goals.`,
+                    bgColor: 'bg-orange-50'
+                });
+            }
+
+            // 10. RECOVERY PREDICTION based on user profile
+            if (exerciseDuration > 900) { // 15+ minutes
+                const recoveryMinutes = Math.round(exerciseDuration * 0.1 * (userProfile.age / 30) * (userProfile.activityLevel === 'athlete' ? 0.5 : 1.2));
+                recommendations.push({
+                    title: `Recovery Planning for ${userProfile.age}-Year-Old`,
+                    message: `${userProfile.name}, based on your age and ${userProfile.activityLevel} fitness level, plan ${recoveryMinutes} minutes of active recovery after this ${exerciseType} session.`,
+                    bgColor: 'bg-gray-50'
                 });
             }
         }
