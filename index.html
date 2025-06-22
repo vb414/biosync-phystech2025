@@ -790,6 +790,59 @@ document.head.appendChild(style);
         
         // Initialize the app
         showWelcome();
+
+        function completeRecommendation(index) {
+    const rec = recommendations[index];
+    if (!rec || !rec.actionable || rec.completed) return;
+    
+    // Mark as completed
+    rec.completed = true;
+    
+    // Apply the effect based on recommendation type
+    switch(rec.type) {
+        case 'hydration':
+            // Increase hydration level
+            biometrics.hydrationLevel = Math.min(100, biometrics.hydrationLevel + 15);
+            showNotification('💧 Hydration restored! Great job staying hydrated.');
+            break;
+            
+        case 'energy':
+            // Increase glycogen stores
+            biometrics.glycogenStores = Math.min(100, biometrics.glycogenStores + 20);
+            showNotification('⚡ Energy boosted! You\'re refueled and ready to go.');
+            break;
+            
+        case 'cooldown':
+            // Reduce core temperature
+            biometrics.coreTemp = Math.max(37.0, biometrics.coreTemp - 0.5);
+            biometrics.heartRate = Math.max(72, biometrics.heartRate - 10);
+            showNotification('🌡️ Temperature normalized! Good recovery.');
+            break;
+    }
+    
+    // Update the display
+    renderDashboard();
+}
+
+function showNotification(message) {
+    // Create a temporary notification
+    const notification = document.createElement('div');
+    notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-pulse';
+    notification.innerHTML = `
+        <div class="flex items-center">
+            <span class="text-xl mr-2">✅</span>
+            <span>${message}</span>
+        </div>
+    `;
+    document.body.appendChild(notification);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        notification.remove();
+    }, 3000);
+}
+
+
         
     </script>
 </body>
