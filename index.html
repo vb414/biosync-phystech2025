@@ -555,185 +555,206 @@
             renderDashboard();
         }
         
-        function renderDashboard() {
-            document.getElementById('root').innerHTML = `
-                <div class="min-h-screen bg-gray-50">
-                    <!-- Header -->
-                    <header class="bg-white shadow-sm border-b">
-                        <div class="max-w-7xl mx-auto px-4 py-4">
-                            <div class="flex items-center justify-between">
-                                <div class="flex items-center space-x-3">
-                                    <span style="font-size: 2rem;">🧠</span>
-                                    <div>
-                                        <h1 class="text-2xl font-bold">BioSync</h1>
-                                        <p class="text-sm text-gray-600">Welcome back, ${userProfile.name}!</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-center space-x-4">
-                                    <select id="exerciseType" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" ${isExercising ? 'disabled' : ''}>
-                                        <option value="running">🏃 Running</option>
-                                        <option value="cycling">🚴 Cycling</option>
-                                        <option value="swimming">🏊 Swimming</option>
-                                        <option value="strength">💪 Strength</option>
-                                        <option value="yoga">🧘 Yoga</option>
-                                    </select>
-                                    <button onclick="toggleExercise()" class="px-6 py-2 rounded-lg font-semibold text-white transition-all ${isExercising ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}">
-                                        ${isExercising ? '⏹️ Stop' : '▶️ Start'}
-                                    </button>
-                                    ${isExercising ? `<div class="font-mono text-lg font-bold text-blue-600">${Math.floor(exerciseDuration / 60)}:${(exerciseDuration % 60).toString().padStart(2, '0')}</div>` : ''}
-                                </div>
+    function renderDashboard() {
+    // Store the current chart data in a more visible format
+    const chartBars = historicalData.length > 0 ? 
+        historicalData.slice(-30).map((data, i) => {
+            const heightPercent = Math.min((data.heartRate / 200) * 100, 100);
+            return `
+                <div class="flex-1 flex flex-col justify-end" style="min-width: 8px;">
+                    <div class="bg-gradient-to-t from-red-500 to-red-400 rounded-t transition-all duration-300 hover:from-red-600 hover:to-red-500" 
+                         style="height: ${heightPercent}%; min-height: 4px; animation: grow 0.5s ease-out;"
+                         title="Time: ${data.time}s | HR: ${data.heartRate} | Hydration: ${Math.round(data.hydration)}%">
+                    </div>
+                </div>
+            `;
+        }).join('') :
+        `<div class="w-full flex items-center justify-center text-gray-500">
+            Start exercising to see your performance data!
+        </div>`;
+
+    document.getElementById('root').innerHTML = `
+        <div class="min-h-screen bg-gray-50">
+            <!-- Header -->
+            <header class="bg-white shadow-sm border-b">
+                <div class="max-w-7xl mx-auto px-4 py-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <span style="font-size: 2rem;">🧠</span>
+                            <div>
+                                <h1 class="text-2xl font-bold">BioSync</h1>
+                                <p class="text-sm text-gray-600">Welcome back, ${userProfile.name}!</p>
                             </div>
                         </div>
-                    </header>
+                        <div class="flex items-center space-x-4">
+                            <select id="exerciseType" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" ${isExercising ? 'disabled' : ''}>
+                                <option value="running">🏃 Running</option>
+                                <option value="cycling">🚴 Cycling</option>
+                                <option value="swimming">🏊 Swimming</option>
+                                <option value="strength">💪 Strength</option>
+                                <option value="yoga">🧘 Yoga</option>
+                            </select>
+                            <button onclick="toggleExercise()" class="px-6 py-2 rounded-lg font-semibold text-white transition-all ${isExercising ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}">
+                                ${isExercising ? '⏹️ Stop' : '▶️ Start'}
+                            </button>
+                            ${isExercising ? `<div class="font-mono text-lg font-bold text-blue-600">${Math.floor(exerciseDuration / 60)}:${(exerciseDuration % 60).toString().padStart(2, '0')}</div>` : ''}
+                        </div>
+                    </div>
+                </div>
+            </header>
 
-                    <!-- User Info Bar -->
-                    <div class="bg-blue-50 border-b px-4 py-3">
-                        <div class="max-w-7xl mx-auto flex items-center justify-between text-sm">
-                            <div class="flex items-center space-x-6">
-                                <span>👤 <strong>Age:</strong> ${userProfile.age}</span>
-                                <span>📏 <strong>BMI:</strong> ${userProfile.bmi}</span>
-                                <span>🏃 <strong>Level:</strong> ${userProfile.activityLevel}</span>
-                                <span>❤️ <strong>Max HR:</strong> ${userProfile.maxHeartRate} bpm</span>
-                                ${isExercising ? '<span class="text-green-600 font-bold">🟢 EXERCISE ACTIVE</span>' : ''}
+            <!-- User Info Bar -->
+            <div class="bg-blue-50 border-b px-4 py-3">
+                <div class="max-w-7xl mx-auto flex items-center justify-between text-sm">
+                    <div class="flex items-center space-x-6">
+                        <span>👤 <strong>Age:</strong> ${userProfile.age}</span>
+                        <span>📏 <strong>BMI:</strong> ${userProfile.bmi}</span>
+                        <span>🏃 <strong>Level:</strong> ${userProfile.activityLevel}</span>
+                        <span>❤️ <strong>Max HR:</strong> ${userProfile.maxHeartRate} bpm</span>
+                        ${isExercising ? '<span class="text-green-600 font-bold animate-pulse">🟢 EXERCISE ACTIVE</span>' : ''}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Dashboard -->
+            <main class="max-w-7xl mx-auto px-4 py-8">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Biometric Cards -->
+                    <div class="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <!-- Heart Rate Card -->
+                        <div class="bg-red-50 rounded-xl p-4 hover:shadow-lg transition-all">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">❤️</div>
+                            <div class="text-2xl font-bold">${biometrics.heartRate}</div>
+                            <div class="text-sm text-gray-600">Heart Rate</div>
+                            <div class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full mt-2 inline-block">
+                                ${biometrics.heartRateZone}
+                            </div>
+                        </div>
+                        
+                        <!-- Hydration Card -->
+                        <div class="bg-blue-50 rounded-xl p-4 hover:shadow-lg transition-all">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">💧</div>
+                            <div class="text-2xl font-bold">${Math.round(biometrics.hydrationLevel)}%</div>
+                            <div class="text-sm text-gray-600">Hydration</div>
+                            <div class="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                <div class="bg-blue-500 h-2 rounded-full transition-all duration-500" style="width: ${biometrics.hydrationLevel}%"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Energy Card -->
+                        <div class="bg-yellow-50 rounded-xl p-4 hover:shadow-lg transition-all">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">⚡</div>
+                            <div class="text-2xl font-bold">${Math.round(biometrics.glycogenStores)}%</div>
+                            <div class="text-sm text-gray-600">Energy</div>
+                            <div class="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                <div class="bg-yellow-500 h-2 rounded-full transition-all duration-500" style="width: ${biometrics.glycogenStores}%"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Temperature Card -->
+                        <div class="bg-orange-50 rounded-xl p-4 hover:shadow-lg transition-all">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🌡️</div>
+                            <div class="text-2xl font-bold">${biometrics.coreTemp.toFixed(1)}°C</div>
+                            <div class="text-sm text-gray-600">Core Temp</div>
+                            <div class="text-xs mt-2 px-2 py-1 rounded-full inline-block ${biometrics.coreTemp > 38.0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}">
+                                ${biometrics.coreTemp > 38.0 ? '⚠️ High' : '✅ Normal'}
                             </div>
                         </div>
                     </div>
 
-                    <!-- Main Dashboard -->
-                    <main class="max-w-7xl mx-auto px-4 py-8">
-                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            <!-- Biometric Cards -->
-                            <div class="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <!-- Heart Rate Card -->
-                                <div class="bg-red-50 rounded-xl p-4 hover:shadow-lg transition-all">
-                                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">❤️</div>
-                                    <div class="text-2xl font-bold">${biometrics.heartRate}</div>
-                                    <div class="text-sm text-gray-600">Heart Rate</div>
-                                    <div class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full mt-2 inline-block">
-                                        ${biometrics.heartRateZone}
+                    <!-- AI Recommendations with Action Buttons -->
+                    <div class="bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center">
+                            🧠 AI Recommendations
+                        </h3>
+                        <div class="space-y-3 max-h-96 overflow-y-auto">
+                            ${recommendations.length > 0 ? 
+                                recommendations.map((rec, index) => `
+                                    <div class="${rec.bgColor} rounded-lg p-3 border-l-4 border-blue-500 ${rec.completed ? 'opacity-50' : ''}">
+                                        <h4 class="font-semibold text-sm ${rec.completed ? 'line-through' : ''}">${rec.title}</h4>
+                                        <p class="text-xs text-gray-700 mt-1">${rec.message}</p>
+                                        ${rec.actionable && !rec.completed ? `
+                                            <button onclick="completeRecommendation(${index})" class="mt-2 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-all">
+                                                ✓ Done
+                                            </button>
+                                        ` : ''}
+                                        ${rec.completed ? '<span class="text-xs text-green-600 mt-2 inline-block">✅ Completed</span>' : ''}
                                     </div>
+                                `).join('') :
+                                `<div class="text-center py-8">
+                                    <div style="font-size: 2rem; margin-bottom: 0.5rem;">📊</div>
+                                    <p class="text-gray-500">${isExercising ? 'AI analyzing your performance...' : 'Start exercising to receive AI recommendations!'}</p>
+                                </div>`
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Performance Chart -->
+                    <div class="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-lg font-semibold mb-4">📊 Real-Time Performance</h3>
+                        <div class="h-64 flex items-end space-x-1 bg-gray-50 rounded-lg p-4" id="performanceChart">
+                            ${chartBars}
+                        </div>
+                        
+                        ${isExercising && historicalData.length > 0 ? `
+                            <div class="mt-4 grid grid-cols-3 gap-4 text-center">
+                                <div class="bg-red-50 p-3 rounded-lg">
+                                    <p class="text-sm text-gray-600">Avg Heart Rate</p>
+                                    <p class="text-lg font-bold text-red-600">
+                                        ${Math.round(historicalData.reduce((sum, d) => sum + d.heartRate, 0) / historicalData.length)}
+                                    </p>
                                 </div>
-                                
-                                <!-- Hydration Card -->
-                                <div class="bg-blue-50 rounded-xl p-4 hover:shadow-lg transition-all">
-                                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">💧</div>
-                                    <div class="text-2xl font-bold">${Math.round(biometrics.hydrationLevel)}%</div>
-                                    <div class="text-sm text-gray-600">Hydration</div>
-                                    <div class="w-full bg-gray-200 rounded-full h-2 mt-2">
-                                        <div class="bg-blue-500 h-2 rounded-full transition-all duration-500" style="width: ${biometrics.hydrationLevel}%"></div>
-                                    </div>
+                                <div class="bg-orange-50 p-3 rounded-lg">
+                                    <p class="text-sm text-gray-600">Calories Burned</p>
+                                    <p class="text-lg font-bold text-orange-600">
+                                        ${Math.round(exerciseDuration * 0.15 * (parseFloat(userProfile.weight) || 70) / 60)}
+                                    </p>
                                 </div>
-                                
-                                <!-- Energy Card -->
-                                <div class="bg-yellow-50 rounded-xl p-4 hover:shadow-lg transition-all">
-                                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">⚡</div>
-                                    <div class="text-2xl font-bold">${Math.round(biometrics.glycogenStores)}%</div>
-                                    <div class="text-sm text-gray-600">Energy</div>
-                                    <div class="w-full bg-gray-200 rounded-full h-2 mt-2">
-                                        <div class="bg-yellow-500 h-2 rounded-full transition-all duration-500" style="width: ${biometrics.glycogenStores}%"></div>
-                                    </div>
-                                </div>
-                                
-                                <!-- Temperature Card -->
-                                <div class="bg-orange-50 rounded-xl p-4 hover:shadow-lg transition-all">
-                                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🌡️</div>
-                                    <div class="text-2xl font-bold">${biometrics.coreTemp.toFixed(1)}°C</div>
-                                    <div class="text-sm text-gray-600">Core Temp</div>
-                                    <div class="text-xs mt-2 px-2 py-1 rounded-full inline-block ${biometrics.coreTemp > 38.0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}">
-                                        ${biometrics.coreTemp > 38.0 ? '⚠️ High' : '✅ Normal'}
-                                    </div>
+                                <div class="bg-blue-50 p-3 rounded-lg">
+                                    <p class="text-sm text-gray-600">Duration</p>
+                                    <p class="text-lg font-bold text-blue-600">
+                                        ${Math.floor(exerciseDuration / 60)}:${(exerciseDuration % 60).toString().padStart(2, '0')}
+                                    </p>
                                 </div>
                             </div>
+                        ` : ''}
+                    </div>
 
-                            <!-- AI Recommendations -->
-                            <div class="bg-white rounded-xl shadow-lg p-6">
-                                <h3 class="text-lg font-semibold mb-4 flex items-center">
-                                    🧠 AI Recommendations
-                                </h3>
-                                <div class="space-y-3 max-h-96 overflow-y-auto">
-                                    ${recommendations.length > 0 ? 
-                                        recommendations.map(rec => `
-                                            <div class="${rec.bgColor} rounded-lg p-3 border-l-4 border-blue-500">
-                                                <h4 class="font-semibold text-sm">${rec.title}</h4>
-                                                <p class="text-xs text-gray-700 mt-1">${rec.message}</p>
-                                            </div>
-                                        `).join('') :
-                                        `<div class="text-center py-8">
-                                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">📊</div>
-                                            <p class="text-gray-500">${isExercising ? 'AI analyzing your performance...' : 'Start exercising to receive AI recommendations!'}</p>
-                                        </div>`
-                                    }
-                                </div>
+                    <!-- Personal Stats -->
+                    <div class="bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center">
+                            👤 Your Personal Stats
+                        </h3>
+                        <div class="space-y-4">
+                            <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                <span class="text-gray-600">🔥 Daily Calories:</span>
+                                <span class="font-bold text-orange-600">${Math.round((userProfile.bmr || 1680) * 1.5)} cal</span>
                             </div>
-
-                            <!-- Performance Chart -->
-                            <div class="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">
-                                <h3 class="text-lg font-semibold mb-4">📊 Real-Time Performance</h3>
-                                <div class="h-64 flex items-end space-x-1 bg-gray-50 rounded-lg p-4">
-                                    ${historicalData.length > 0 ? 
-                                        historicalData.slice(-30).map((data, i) => `
-                                            <div class="flex-1 flex flex-col justify-end">
-                                                <div class="bg-red-400 rounded-t transition-all duration-300 hover:bg-red-500" 
-                                                     style="height: ${(data.heartRate / 200) * 100}%; min-height: 4px;"
-                                                     title="Time: ${data.time}s | HR: ${data.heartRate} | Hydration: ${data.hydration}%">
-                                                </div>
-                                            </div>
-                                        `).join('') :
-                                        `<div class="w-full flex items-center justify-center text-gray-500">
-                                            Start exercising to see your performance data!
-                                        </div>`
-                                    }
-                                </div>
-                                
-                                ${isExercising && historicalData.length > 0 ? `
-                                    <div class="mt-4 grid grid-cols-3 gap-4 text-center">
-                                        <div class="bg-red-50 p-3 rounded-lg">
-                                            <p class="text-sm text-gray-600">Avg Heart Rate</p>
-                                            <p class="text-lg font-bold text-red-600">
-                                                ${Math.round(historicalData.reduce((sum, d) => sum + d.heartRate, 0) / historicalData.length)}
-                                            </p>
-                                        </div>
-                                        <div class="bg-orange-50 p-3 rounded-lg">
-                                            <p class="text-sm text-gray-600">Calories Burned</p>
-                                            <p class="text-lg font-bold text-orange-600">
-                                                ${Math.round(exerciseDuration * 0.15 * (parseFloat(userProfile.weight) || 70) / 60)}
-                                            </p>
-                                        </div>
-                                        <div class="bg-blue-50 p-3 rounded-lg">
-                                            <p class="text-sm text-gray-600">Duration</p>
-                                            <p class="text-lg font-bold text-blue-600">
-                                                ${Math.floor(exerciseDuration / 60)}:${(exerciseDuration % 60).toString().padStart(2, '0')}
-                                            </p>
-                                        </div>
-                                    </div>
-                                ` : ''}
+                            <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                <span class="text-gray-600">💧 Water Needs:</span>
+                                <span class="font-bold text-blue-600">${Math.round((parseFloat(userProfile.weight) || 70) * 35)} ml/day</span>
                             </div>
-
-                            <!-- Personal Stats -->
-                            <div class="bg-white rounded-xl shadow-lg p-6">
-                                <h3 class="text-lg font-semibold mb-4 flex items-center">
-                                    👤 Your Personal Stats
-                                </h3>
-                                <div class="space-y-4">
-                                    <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                                        <span class="text-gray-600">🔥 Daily Calories:</span>
-                                        <span class="font-bold text-orange-600">${Math.round((userProfile.bmr || 1680) * 1.5)} cal</span>
-                                    </div>
-                                    <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                                        <span class="text-gray-600">💧 Water Needs:</span>
-                                        <span class="font-bold text-blue-600">${Math.round((parseFloat(userProfile.weight) || 70) * 35)} ml/day</span>
-                                    </div>
-                                    <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                                        <span class="text-gray-600">📈 Status:</span>
-                                        <span class="font-bold ${isExercising ? 'text-green-600' : 'text-gray-600'}">${isExercising ? '🏃 Exercising' : '😌 Resting'}</span>
-                                    </div>
-                                </div>
+                            <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                <span class="text-gray-600">📈 Status:</span>
+                                <span class="font-bold ${isExercising ? 'text-green-600' : 'text-gray-600'}">${isExercising ? '🏃 Exercising' : '😌 Resting'}</span>
                             </div>
                         </div>
-                    </main>
+                    </div>
                 </div>
-            `;
-        }
+            </main>
+        </div>
+    `;
+}
+
+
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes grow {
+        from { height: 0; }
+        to { height: auto; }
+    }
+`;
+document.head.appendChild(style);
         
         function toggleExercise() {
             if (!isExercising) {
