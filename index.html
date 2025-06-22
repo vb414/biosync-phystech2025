@@ -117,8 +117,8 @@
                 else if (biometrics.hydrationLevel < 80) urgency = ' Important:';
                 
                 recommendations.push({
-                    title: `${urgency} Hydration for ${userProfile.activityLevel.charAt(0).toUpperCase() + userProfile.activityLevel.slice(1)} Athlete`,
-                    message: `${userProfile.name}, drink ${adjustedWater}ml water now. Your ${bodyWeight}kg body needs extra hydration during ${exerciseType}.`,
+                    title: `${urgency} Hydration Alert`,
+                    message: `${userProfile.name}, drink ${adjustedWater}ml water now. As a ${userProfile.activityLevel} athlete (${bodyWeight}kg), your body needs extra hydration during ${exerciseType}.`,
                     bgColor: biometrics.hydrationLevel < 70 ? 'bg-red-50' : 'bg-blue-50'
                 });
             }
