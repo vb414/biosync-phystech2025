@@ -16,37 +16,81 @@ const TrendingUp = ({ className = "" }) => <span className={className}>📈</spa
 const Upload = ({ className = "" }) => <span className={className}>📤</span>;
 const Shield = ({ className = "" }) => <span className={className}>🛡️</span>;
 
-// Enhanced Chart Component with real-time updates
+// Enhanced Chart Component
 const SimpleChart = ({ data }) => {
     if (!data || data.length === 0) return <div className="text-gray-500 text-center">No data yet - Start exercising to see your performance</div>;
     
-    const maxValue = Math.max(...data.map(d => d.heartRate || 0), 100);
+    const maxHR = Math.max(...data.map(d => d.heartRate || 0), 200);
+    const minHR = Math.min(...data.map(d => d.heartRate || 0), 60);
+    const hrRange = maxHR - minHR || 1;
     
     return (
         <div className="h-full w-full bg-gray-50 rounded p-4">
-            <div className="flex items-end space-x-1 h-48">
-                {data.slice(-30).map((item, i) => (
-                    <div key={i} className="flex-1 flex flex-col justify-end">
-                        <div 
-                            className="w-full bg-gradient-to-t from-red-500 to-red-400 rounded-t transition-all duration-300 hover:from-red-600 hover:to-red-500"
-                            style={{ 
-                                height: `${(item.heartRate / maxValue) * 100}%`, 
-                                minHeight: '4px',
-                                animation: 'grow 0.5s ease-out'
-                            }}
-                            title={`Time: ${item.time}s | HR: ${item.heartRate} | Hydration: ${Math.round(item.hydration)}%`}
-                        />
-                    </div>
-                ))}
-            </div>
-            <div className="flex justify-between mt-2 text-xs text-gray-600">
-                <span>Time: {data.length > 0 ? data[0].time : 0}s</span>
-                <span className="text-red-500">Heart Rate Trend</span>
-                <span>Time: {data.length > 0 ? data[data.length - 1].time : 0}s</span>
-            </div>
+            <svg width="100%" height="100%" viewBox="0 0 600 240" preserveAspectRatio="none">
+                <defs>
+                    <linearGradient id="heartRateGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" style={{stopColor:'#ef4444', stopOpacity:0.8}} />
+                        <stop offset="100%" style={{stopColor:'#dc2626', stopOpacity:0.8}} />
+                    </linearGradient>
+                    <linearGradient id="hydrationGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" style={{stopColor:'#3b82f6', stopOpacity:0.6}} />
+                        <stop offset="100%" style={{stopColor:'#2563eb', stopOpacity:0.6}} />
+                    </linearGradient>
+                </defs>
+                
+                {/* Heart Rate Path */}
+                <path
+                    d={data.map((item, i) => {
+                        const x = 20 + (i / (data.length - 1 || 1)) * 560;
+                        const y = 20 + (1 - (item.heartRate - minHR) / hrRange) * 200;
+                        return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+                    }).join(' ')}
+                    fill="none"
+                    stroke="#dc2626"
+                    strokeWidth="3"
+                />
+                
+                {/* Hydration Path */}
+                <path
+                    d={data.map((item, i) => {
+                        const x = 20 + (i / (data.length - 1 || 1)) * 560;
+                        const y = 20 + (1 - item.hydration / 100) * 200;
+                        return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+                    }).join(' ')}
+                    fill="none"
+                    stroke="#3b82f6"
+                    strokeWidth="2"
+                    strokeDasharray="5,5"
+                />
+                
+                {/* Data Points */}
+                {data.map((item, i) => {
+                    const x = 20 + (i / (data.length - 1 || 1)) * 560;
+                    const hrY = 20 + (1 - (item.heartRate - minHR) / hrRange) * 200;
+                    const hydrationY = 20 + (1 - item.hydration / 100) * 200;
+                    
+                    return (
+                        <g key={i}>
+                            <circle cx={x} cy={hrY} r="4" fill="#dc2626" stroke="white" strokeWidth="2">
+                                <title>Time: {item.time}s | HR: {item.heartRate} | Hydration: {Math.round(item.hydration)}%</title>
+                            </circle>
+                            <circle cx={x} cy={hydrationY} r="3" fill="#3b82f6" stroke="white" strokeWidth="2">
+                                <title>Hydration: {Math.round(item.hydration)}%</title>
+                            </circle>
+                        </g>
+                    );
+                })}
+                
+                {/* Labels */}
+                <text x="20" y="235" fontSize="12" fill="#666">0s</text>
+                <text x="580" y="235" fontSize="12" fill="#666" textAnchor="end">{data[data.length - 1]?.time}s</text>
+                <text x="300" y="235" fontSize="12" fill="#dc2626" textAnchor="middle">❤️ Heart Rate</text>
+                <text x="300" y="15" fontSize="12" fill="#3b82f6" textAnchor="middle">💧 Hydration</text>
+            </svg>
         </div>
     );
 };
+
 const BioSyncAdvanced = () => {
     const [currentStep, setCurrentStep] = useState('welcome');
     const [isExercising, setIsExercising] = useState(false);
@@ -72,7 +116,7 @@ const BioSyncAdvanced = () => {
     const [medicalReport, setMedicalReport] = useState(null);
     const [reportAnalysis, setReportAnalysis] = useState(null);
 
-    // Enhanced biometrics state with flags for recent actions
+    // Enhanced biometrics state with cooldowns
     const [biometrics, setBiometrics] = useState({
         heartRate: 72,
         heartRateZone: 'rest',
@@ -83,11 +127,16 @@ const BioSyncAdvanced = () => {
         glycogenStores: 100,
         fatigue: 0,
         vo2Max: 45,
-        recentlyHydrated: false,
-        recentlyEnergized: false
+        hydrationCooldown: 0,
+        energyCooldown: 0,
+        tempCooldown: 0,
+        lastHydrationAlert: 0,
+        lastEnergyAlert: 0,
+        lastTempAlert: 0
     });
 
     const [recommendations, setRecommendations] = useState([]);
+    const [completedRecommendations, setCompletedRecommendations] = useState({});
     const [alerts, setAlerts] = useState([]);
     const [historicalData, setHistoricalData] = useState([]);
     const intervalRef = useRef(null);
@@ -143,7 +192,7 @@ const BioSyncAdvanced = () => {
         }
     }, [exerciseDuration, isExercising]);
 
-    // Enhanced updateBiometrics with recent action tracking
+    // Enhanced updateBiometrics with cooldown system
     const updateBiometrics = () => {
         setBiometrics(prev => {
             const intensityMultiplier = {
@@ -165,37 +214,52 @@ const BioSyncAdvanced = () => {
 
             const intensityFactor = Math.max(hrPercentage / 100, 0);
             const bodyWeightFactor = (parseFloat(userProfile.weight) || 70) / 70;
-            const newSweatRate = 0.5 * intensityFactor * bodyWeightFactor;
-            const newCoreTemp = Math.min(prev.coreTemp + intensityFactor * 0.015, 39.5);
             
-            // Only decrease hydration/glycogen if not recently replenished
-            const newHydration = prev.recentlyHydrated ? 
-                prev.hydrationLevel : 
-                Math.max(prev.hydrationLevel - (newSweatRate * 0.5), 0);
+            // Decrease cooldowns
+            let newHydrationCooldown = Math.max(prev.hydrationCooldown - 1, 0);
+            let newEnergyCooldown = Math.max(prev.energyCooldown - 1, 0);
+            let newTempCooldown = Math.max(prev.tempCooldown - 1, 0);
             
-            const newGlycogen = prev.recentlyEnergized ? 
-                prev.glycogenStores : 
-                Math.max(prev.glycogenStores - (intensityFactor * 0.3), 0);
+            // Calculate new values based on cooldowns
+            let newHydration = prev.hydrationLevel;
+            if (newHydrationCooldown === 0) {
+                const sweatRate = 0.5 * intensityFactor * bodyWeightFactor;
+                newHydration = Math.max(prev.hydrationLevel - (sweatRate * 0.5), 0);
+            }
+            
+            let newGlycogen = prev.glycogenStores;
+            if (newEnergyCooldown === 0) {
+                newGlycogen = Math.max(prev.glycogenStores - (intensityFactor * 0.3), 0);
+            }
+            
+            let newCoreTemp = prev.coreTemp;
+            if (newTempCooldown === 0) {
+                newCoreTemp = Math.min(prev.coreTemp + intensityFactor * 0.015, 39.5);
+            } else {
+                // Cool down faster when in cooldown
+                newCoreTemp = Math.max(prev.coreTemp - 0.02, 37.0);
+            }
 
             return {
                 ...prev,
                 heartRate: Math.round(newHR),
                 heartRateZone: zone,
-                sweatRate: newSweatRate,
+                sweatRate: 0.5 * intensityFactor * bodyWeightFactor,
                 coreTemp: newCoreTemp,
                 hydrationLevel: newHydration,
                 glycogenStores: newGlycogen,
-                recentlyHydrated: false,
-                recentlyEnergized: false
+                hydrationCooldown: newHydrationCooldown,
+                energyCooldown: newEnergyCooldown,
+                tempCooldown: newTempCooldown
             };
         });
     };
 
-    // Enhanced generateRecommendations with actionable items
+    // Enhanced generateRecommendations with repeated alerts
     const generateRecommendations = () => {
         const recs = [];
 
-        // Personalized status
+        // Always show current status
         recs.push({
             id: 'status',
             type: 'status',
@@ -207,40 +271,62 @@ const BioSyncAdvanced = () => {
             actionable: false
         });
 
-        // ACTIONABLE HYDRATION
-        if (biometrics.hydrationLevel < 90 && !recommendations.find(r => r.id === 'hydration' && r.completed)) {
-            const bodyWeight = parseFloat(userProfile.weight) || 70;
-            const waterNeeded = Math.round((100 - biometrics.hydrationLevel) * bodyWeight * 0.015);
-            const exerciseMultiplier = {
-                running: 1.3, cycling: 1.0, swimming: 0.8, strength: 1.1, yoga: 0.6
-            }[exerciseType];
-            const adjustedWater = Math.round(waterNeeded * exerciseMultiplier);
-            
-            let urgency = '';
-            if (biometrics.hydrationLevel < 70) urgency = 'URGENT:';
-            else if (biometrics.hydrationLevel < 80) urgency = 'Important:';
-            
+        // HYDRATION - Show again after 60 seconds if still low
+        if (biometrics.hydrationLevel < 90 && (exerciseDuration - biometrics.lastHydrationAlert) > 60) {
+            const waterNeeded = Math.round((100 - biometrics.hydrationLevel) * (parseFloat(userProfile.weight) || 70) * 0.01 * 1000);
             recs.push({
-                id: 'hydration',
+                id: `hydration_${exerciseDuration}`,
                 type: 'hydration',
-                title: `${urgency} Hydration Alert`,
-                message: `${userProfile.name}, drink ${adjustedWater}ml water now. As a ${userProfile.activityLevel} athlete (${bodyWeight}kg), your body needs extra hydration during ${exerciseType}.`,
+                title: biometrics.hydrationLevel < 70 ? 'URGENT: Hydration Alert' : 'Hydration Alert',
+                message: `${userProfile.name}, drink ${waterNeeded}ml water to maintain optimal hydration. Your hydration is at ${Math.round(biometrics.hydrationLevel)}%.`,
                 icon: Droplets,
                 color: 'text-blue-500',
                 bgColor: biometrics.hydrationLevel < 70 ? 'bg-red-50' : 'bg-blue-50',
-                actionable: true,
-                value: adjustedWater
+                actionable: true
             });
+            setBiometrics(prev => ({ ...prev, lastHydrationAlert: exerciseDuration }));
         }
 
-        // Heart rate zone feedback
+        // ENERGY - Show again after 90 seconds if still low
+        if (biometrics.glycogenStores < 70 && (exerciseDuration - biometrics.lastEnergyAlert) > 90) {
+            const baseCarbs = userProfile.gender === 'female' ? 25 : 30;
+            const recommendedCarbs = Math.round(baseCarbs * (exerciseType === 'running' ? 1.2 : 1.0));
+            
+            recs.push({
+                id: `energy_${exerciseDuration}`,
+                type: 'energy',
+                title: 'Energy Management',
+                message: `${userProfile.name}, consume ${recommendedCarbs}g quick carbs to maintain energy. Your glycogen is at ${Math.round(biometrics.glycogenStores)}%.`,
+                icon: Zap,
+                color: 'text-yellow-500',
+                bgColor: 'bg-yellow-50',
+                actionable: true
+            });
+            setBiometrics(prev => ({ ...prev, lastEnergyAlert: exerciseDuration }));
+        }
+
+        // TEMPERATURE - Show again after 120 seconds if still high
+        if (biometrics.coreTemp > 38.0 && (exerciseDuration - biometrics.lastTempAlert) > 120) {
+            recs.push({
+                id: `temp_${exerciseDuration}`,
+                type: 'cooling',
+                title: 'Temperature Rising',
+                message: `${userProfile.name}, core temp at ${biometrics.coreTemp.toFixed(1)}°C. Take a cooling break.`,
+                icon: Thermometer,
+                color: 'text-orange-500',
+                bgColor: 'bg-orange-50',
+                actionable: true
+            });
+            setBiometrics(prev => ({ ...prev, lastTempAlert: exerciseDuration }));
+        }
+
+        // Heart rate zone feedback (non-actionable)
         if (biometrics.heartRateZone === 'peak') {
-            const ageGroup = userProfile.age < 25 ? 'young athlete' : userProfile.age > 50 ? 'experienced athlete' : 'athlete';
             recs.push({
                 id: 'hr-peak',
                 type: 'intensity',
-                title: `Peak Zone Alert for ${userProfile.age}-year-old`,
-                message: `${userProfile.name}, as a ${ageGroup}, reduce intensity to 70-85% max HR (${Math.round(userProfile.maxHeartRate * 0.7)}-${Math.round(userProfile.maxHeartRate * 0.85)} bpm) for optimal ${exerciseType} performance.`,
+                title: 'Peak Zone Alert',
+                message: 'You\'re in peak zone! Consider reducing intensity',
                 icon: Heart,
                 color: 'text-red-500',
                 bgColor: 'bg-red-50',
@@ -250,8 +336,8 @@ const BioSyncAdvanced = () => {
             recs.push({
                 id: 'hr-cardio',
                 type: 'performance',
-                title: 'Perfect Cardio Zone Achievement',
-                message: `Excellent! Your ${biometrics.heartRate} bpm is ideal for your age (${userProfile.age}). This zone maximizes fat burn and cardiovascular benefits for ${exerciseType}.`,
+                title: 'Optimal Cardio Zone',
+                message: 'Perfect! You\'re in the cardio zone for maximum benefit',
                 icon: Heart,
                 color: 'text-green-500',
                 bgColor: 'bg-green-50',
@@ -259,45 +345,14 @@ const BioSyncAdvanced = () => {
             });
         }
 
-        // ACTIONABLE ENERGY
-        if (biometrics.glycogenStores < 70 && !recommendations.find(r => r.id === 'energy' && r.completed)) {
-            const baseCarbs = userProfile.gender === 'female' ? 25 : 30;
-            const intensityMultiplier = {
-                running: 1.2, cycling: 1.0, swimming: 1.1, strength: 0.8, yoga: 0.5
-            }[exerciseType];
-            const recommendedCarbs = Math.round(baseCarbs * intensityMultiplier);
-            
-            recs.push({
-                id: 'energy',
-                type: 'energy',
-                title: `Energy Management for ${userProfile.gender.charAt(0).toUpperCase() + userProfile.gender.slice(1)} Athletes`,
-                message: `${userProfile.name}, consume ${recommendedCarbs}g quick carbs (banana, sports drink). ${userProfile.gender === 'female' ? 'Women' : 'Men'} typically need this amount during ${exerciseType} sessions lasting ${Math.floor(exerciseDuration/60)}+ minutes.`,
-                icon: Zap,
-                color: 'text-yellow-500',
-                bgColor: 'bg-yellow-50',
-                actionable: true,
-                value: recommendedCarbs
-            });
-        }
+        // Add completed recommendations back
+        Object.values(completedRecommendations).forEach(rec => {
+            if (!recs.find(r => r.id === rec.id)) {
+                recs.push(rec);
+            }
+        });
 
-        // ACTIONABLE TEMPERATURE
-        if (biometrics.coreTemp > 38.0 && !recommendations.find(r => r.id === 'temp' && r.completed)) {
-            recs.push({
-                id: 'temp',
-                type: 'cooling',
-                title: 'Temperature Rising',
-                message: `${userProfile.name}, core temp elevated to ${biometrics.coreTemp.toFixed(1)}°C. Take a 2-minute cool-down break.`,
-                icon: Thermometer,
-                color: 'text-orange-500',
-                bgColor: 'bg-orange-50',
-                actionable: true,
-                value: 2
-            });
-        }
-
-        // Keep completed recommendations
-        const completedRecs = recommendations.filter(r => r.completed);
-        setRecommendations([...recs, ...completedRecs]);
+        setRecommendations(recs);
     };
 
     const updateHistoricalData = () => {
@@ -309,33 +364,39 @@ const BioSyncAdvanced = () => {
                 glycogen: biometrics.glycogenStores,
                 fatigue: biometrics.fatigue || 0
             };
-            const newData = [...prev, newEntry];
-            return newData.slice(-30); // Keep only last 30 points
+            return [...prev.slice(-29), newEntry]; // Keep last 30 entries
         });
     };
 
-    // New function to handle recommendation completion
+    // Complete recommendation handler
     const completeRecommendation = (recId) => {
         const rec = recommendations.find(r => r.id === recId);
-        if (!rec || !rec.actionable || rec.completed) return;
+        if (!rec || !rec.actionable) return;
 
         // Mark as completed
-        setRecommendations(prev => prev.map(r => 
-            r.id === recId ? {...r, completed: true} : r
-        ));
+        const completedRec = { ...rec, completed: true };
+        setCompletedRecommendations(prev => ({ ...prev, [recId]: completedRec }));
 
-        // Apply the effect
+        // Apply effects based on type
         setBiometrics(prev => {
             switch(rec.type) {
                 case 'hydration':
-                    showNotification('💧 Hydration restored! Great job staying hydrated.');
-                    return {...prev, hydrationLevel: Math.min(100, prev.hydrationLevel + 15), recentlyHydrated: true};
+                    showNotification('💧 Hydration restored! You\'ll maintain this level for a while.');
+                    return { ...prev, hydrationLevel: Math.min(100, prev.hydrationLevel + 20), hydrationCooldown: 45 };
+                    
                 case 'energy':
-                    showNotification('⚡ Energy boosted! You\'re refueled and ready to go.');
-                    return {...prev, glycogenStores: Math.min(100, prev.glycogenStores + 20), recentlyEnergized: true};
+                    showNotification('⚡ Energy boosted! Your glycogen stores are replenished.');
+                    return { ...prev, glycogenStores: Math.min(100, prev.glycogenStores + 25), energyCooldown: 60 };
+                    
                 case 'cooling':
-                    showNotification('🌡️ Temperature normalized! Good recovery.');
-                    return {...prev, coreTemp: Math.max(37.0, prev.coreTemp - 0.5), heartRate: Math.max(72, prev.heartRate - 10)};
+                    showNotification('🌡️ Cooling down! Your body temperature is normalizing.');
+                    return { 
+                        ...prev, 
+                        coreTemp: Math.max(37.0, prev.coreTemp - 0.3), 
+                        heartRate: Math.max(72, prev.heartRate - 10),
+                        tempCooldown: 30 
+                    };
+                    
                 default:
                     return prev;
             }
@@ -379,7 +440,12 @@ const BioSyncAdvanced = () => {
                     cholesterol: Math.random() > 0.6 ? 'normal' : 'high',
                     hemoglobin: Math.random() > 0.8 ? 'normal' : 'low',
                     vitamins: { d: Math.random() > 0.5 ? 'normal' : 'low' },
-                    recommendations: ['Monitor blood sugar during exercise', 'Consider vitamin D supplementation', 'Stay hydrated during workouts']
+                    recommendations: [
+                        'Monitor blood sugar during exercise', 
+                        'Consider vitamin D supplementation',
+                        'Stay hydrated during workouts',
+                        'Maintain electrolyte balance'
+                    ]
                 };
                 setReportAnalysis(analysis);
             }, 2000);
@@ -403,6 +469,45 @@ const BioSyncAdvanced = () => {
             peak: 'bg-red-100 text-red-600'
         };
         return colors[zone] || 'bg-gray-100 text-gray-600';
+    };
+
+    // Toggle exercise function
+    const toggleExercise = () => {
+        if (!isExercising) {
+            setIsExercising(true);
+            setExerciseDuration(0);
+            setHistoricalData([]);
+            setRecommendations([]);
+            setCompletedRecommendations({});
+            setBiometrics(prev => ({
+                ...prev,
+                lastHydrationAlert: 0,
+                lastEnergyAlert: 0,
+                lastTempAlert: 0
+            }));
+        } else {
+            setIsExercising(false);
+            setExerciseDuration(0);
+            setBiometrics({
+                heartRate: 72,
+                heartRateZone: 'rest',
+                sweatRate: 0,
+                coreTemp: 37.0,
+                hydrationLevel: 100,
+                electrolyteBalance: { sodium: 140, potassium: 4.0, magnesium: 1.8 },
+                glycogenStores: 100,
+                fatigue: 0,
+                vo2Max: 45,
+                hydrationCooldown: 0,
+                energyCooldown: 0,
+                tempCooldown: 0,
+                lastHydrationAlert: 0,
+                lastEnergyAlert: 0,
+                lastTempAlert: 0
+            });
+            setRecommendations([]);
+            setCompletedRecommendations({});
+        }
     };
 
     // WELCOME SCREEN
@@ -603,7 +708,7 @@ const BioSyncAdvanced = () => {
         );
     }
 
-    // MEDICAL REPORT UPLOAD SCREEN
+// MEDICAL REPORT UPLOAD SCREEN
     if (currentStep === 'medical') {
         return (
             <div className="min-h-screen bg-gray-50 py-8">
@@ -611,11 +716,10 @@ const BioSyncAdvanced = () => {
                     <div className="bg-white rounded-2xl shadow-xl p-8">
                         <h2 className="text-3xl font-bold text-gray-800 mb-6">Medical Information</h2>
                         <p className="text-gray-600 mb-8">
-                            Upload your recent medical report for personalized nutrition recommendations. 
-                            This is optional but helps us provide more accurate guidance.
+                            Upload your recent medical report for personalized nutrition recommendations. This is optional but helps us provide more accurate guidance.
                         </p>
 
-                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6 hover:border-blue-400 transition-colors">
+                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6">
                             <Upload className="text-5xl mx-auto mb-4" />
                             <h3 className="text-lg font-semibold mb-2">Upload Medical Report</h3>
                             <p className="text-sm text-gray-600 mb-4">PDF, JPG, or PNG (Max 10MB)</p>
@@ -628,7 +732,7 @@ const BioSyncAdvanced = () => {
                             />
                             <label
                                 htmlFor="medical-upload"
-                                className="inline-block bg-blue-500 text-white px-6 py-2 rounded-lg cursor-pointer hover:bg-blue-600 transition-all"
+                                className="inline-block bg-blue-500 text-white px-6 py-2 rounded-lg cursor-pointer hover:bg-blue-600"
                             >
                                 Choose File
                             </label>
@@ -648,7 +752,7 @@ const BioSyncAdvanced = () => {
 
                         {reportAnalysis && (
                             <div className="bg-blue-50 rounded-lg p-6 mb-6">
-                                <h3 className="font-semibold text-lg mb-4">🔬 Medical Report Analysis</h3>
+                                <h3 className="font-semibold text-lg mb-4">Medical Report Analysis</h3>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="flex justify-between bg-white p-3 rounded">
                                         <span>Glucose:</span>
@@ -735,7 +839,7 @@ const BioSyncAdvanced = () => {
                                 <option value="yoga">🧘 Yoga</option>
                             </select>
                             <button
-                                onClick={() => setIsExercising(!isExercising)}
+                                onClick={toggleExercise}
                                 className={`px-6 py-2 rounded-lg font-semibold text-white transition-colors ${
                                     isExercising 
                                         ? 'bg-red-500 hover:bg-red-600' 
@@ -771,16 +875,6 @@ const BioSyncAdvanced = () => {
                 </div>
             </div>
 
-            {/* Alerts */}
-            {alerts.length > 0 && (
-                <div className="bg-red-50 border-b px-4 py-3">
-                    <div className="max-w-7xl mx-auto flex items-center">
-                        <AlertCircle className="text-red-600 mr-2" />
-                        <p className="text-red-800">{alerts[0].message}</p>
-                    </div>
-                </div>
-            )}
-
             {/* Dashboard */}
             <main className="max-w-7xl mx-auto px-4 py-8">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -807,6 +901,9 @@ const BioSyncAdvanced = () => {
                                     style={{ width: `${biometrics.hydrationLevel}%` }}
                                 />
                             </div>
+                            {biometrics.hydrationCooldown > 0 && (
+                                <div className="text-xs text-green-600 mt-1">Protected: {biometrics.hydrationCooldown}s</div>
+                            )}
                         </div>
                         <div className="bg-yellow-50 rounded-xl p-4 transition-all hover:shadow-lg">
                             <Zap className="text-2xl mb-2" />
@@ -818,6 +915,9 @@ const BioSyncAdvanced = () => {
                                     style={{ width: `${biometrics.glycogenStores}%` }}
                                 />
                             </div>
+                            {biometrics.energyCooldown > 0 && (
+                                <div className="text-xs text-green-600 mt-1">Protected: {biometrics.energyCooldown}s</div>
+                            )}
                         </div>
                         <div className="bg-orange-50 rounded-xl p-4 transition-all hover:shadow-lg">
                             <Thermometer className="text-2xl mb-2" />
@@ -826,10 +926,13 @@ const BioSyncAdvanced = () => {
                             <div className={`text-xs mt-1 ${biometrics.coreTemp > 38.0 ? 'text-red-600' : 'text-green-600'}`}>
                                 {biometrics.coreTemp > 38.0 ? '⚠️ Elevated' : '✓ Normal'}
                             </div>
+                            {biometrics.tempCooldown > 0 && (
+                                <div className="text-xs text-blue-600 mt-1">Cooling: {biometrics.tempCooldown}s</div>
+                            )}
                         </div>
                     </div>
 
-                    {/* Enhanced AI Recommendations with Action Buttons */}
+                    {/* AI Recommendations */}
                     <div className="bg-white rounded-xl shadow-lg p-6">
                         <h3 className="text-lg font-semibold mb-4 flex items-center">
                             <Brain className="mr-2" />
@@ -838,17 +941,12 @@ const BioSyncAdvanced = () => {
                         {recommendations.length > 0 ? (
                             <div className="space-y-3 max-h-96 overflow-y-auto">
                                 {recommendations.map(rec => (
-                                    <div 
-                                        key={rec.id} 
-                                        className={`${rec.bgColor} rounded-lg p-3 transition-all hover:shadow-md ${rec.completed ? 'opacity-60' : ''}`}
-                                    >
+                                    <div key={rec.id} className={`${rec.bgColor} rounded-lg p-3 transition-all hover:shadow-md ${rec.completed ? 'opacity-60' : ''}`}>
                                         <div className="flex items-start space-x-3">
                                             <rec.icon className="text-xl flex-shrink-0 mt-0.5" />
                                             <div className="flex-1">
-                                                <h4 className={`font-semibold text-sm ${rec.completed ? 'line-through' : ''}`}>
-                                                    {rec.title}
-                                                </h4>
-                                                <p className="text-xs text-gray-700 mt-1">{rec.message}</p>
+                                                <h4 className={`font-semibold text-sm ${rec.completed ? 'line-through' : ''}`}>{rec.title}</h4>
+                                                <p className="text-xs text-gray-700">{rec.message}</p>
                                                 {rec.actionable && !rec.completed && (
                                                     <button
                                                         onClick={() => completeRecommendation(rec.id)}
@@ -881,7 +979,7 @@ const BioSyncAdvanced = () => {
                         {/* Medical-based recommendations */}
                         {reportAnalysis && reportAnalysis.recommendations && (
                             <div className="mt-4 pt-4 border-t">
-                                <h4 className="font-semibold text-sm mb-2">📋 From your medical report:</h4>
+                                <h4 className="font-semibold text-sm mb-2">From your medical report:</h4>
                                 <ul className="text-xs text-gray-600 space-y-1">
                                     {reportAnalysis.recommendations.map((rec, i) => (
                                         <li key={i} className="flex items-start">
@@ -894,11 +992,11 @@ const BioSyncAdvanced = () => {
                         )}
                     </div>
 
-                    {/* Enhanced Performance Chart */}
+                    {/* Performance Chart */}
                     <div className="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">
                         <h3 className="text-lg font-semibold mb-4 flex items-center">
                             <BarChart3 className="mr-2" />
-                            Real-Time Performance Tracking
+                            Performance Tracking
                         </h3>
                         <SimpleChart data={historicalData} />
                         {isExercising && historicalData.length > 0 && (
@@ -922,9 +1020,9 @@ const BioSyncAdvanced = () => {
                                     </p>
                                 </div>
                                 <div>
-                                    <p className="text-sm text-gray-600">Sweat Loss</p>
+                                    <p className="text-sm text-gray-600">Duration</p>
                                     <p className="text-lg font-semibold text-purple-600">
-                                        {(biometrics.sweatRate * exerciseDuration / 3600).toFixed(1)}L
+                                        {Math.floor(exerciseDuration / 60)}:{(exerciseDuration % 60).toString().padStart(2, '0')}
                                     </p>
                                 </div>
                             </div>
@@ -939,32 +1037,32 @@ const BioSyncAdvanced = () => {
                         </h3>
                         <div className="space-y-3">
                             <div className="flex justify-between p-2 hover:bg-gray-50 rounded">
-                                <span className="text-gray-600">🔥 Daily Calories:</span>
+                                <span className="text-gray-600">Daily Calories:</span>
                                 <span className="font-semibold">
                                     {Math.round((userProfile.bmr || 1680) * 1.5)} cal
                                 </span>
                             </div>
                             <div className="flex justify-between p-2 hover:bg-gray-50 rounded">
-                                <span className="text-gray-600">💧 Water Needs:</span>
+                                <span className="text-gray-600">Water Needs:</span>
                                 <span className="font-semibold">
                                     {Math.round((parseFloat(userProfile.weight) || 70) * 35)} ml/day
                                 </span>
                             </div>
                             <div className="flex justify-between p-2 hover:bg-gray-50 rounded">
-                                <span className="text-gray-600">🎯 Fitness Goals:</span>
+                                <span className="text-gray-600">Fitness Goals:</span>
                                 <span className="font-semibold text-sm">
                                     {userProfile.fitnessGoals.slice(0, 2).join(', ') || 'General Health'}
                                 </span>
                             </div>
                             <div className="flex justify-between p-2 hover:bg-gray-50 rounded">
-                                <span className="text-gray-600">📈 Exercise Status:</span>
+                                <span className="text-gray-600">Exercise Status:</span>
                                 <span className={`font-semibold ${isExercising ? 'text-green-600' : 'text-gray-600'}`}>
                                     {isExercising ? '🏃 Active' : '⏸️ Resting'}
                                 </span>
                             </div>
                             {userProfile.medicalConditions.length > 0 && userProfile.medicalConditions[0] !== 'None' && (
                                 <div className="flex justify-between p-2 bg-yellow-50 rounded">
-                                    <span className="text-gray-600">⚠️ Conditions:</span>
+                                    <span className="text-gray-600">Conditions:</span>
                                     <span className="font-semibold text-sm text-red-600">
                                         {userProfile.medicalConditions.join(', ')}
                                     </span>
@@ -988,13 +1086,6 @@ style.textContent = `
     @keyframes slideIn {
         from { transform: translateX(100%); opacity: 0; }
         to { transform: translateX(0); opacity: 1; }
-    }
-    .animate-pulse {
-        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-    }
-    @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: .5; }
     }
 `;
 document.head.appendChild(style);
