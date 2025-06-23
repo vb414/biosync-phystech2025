@@ -1,1108 +1,1095 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BioSync - AI-Powered Personal Health Optimizer</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @keyframes grow {
-            from { height: 0; }
-            to { height: auto; }
-        }
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        .animate-pulse {
-            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: .5; }
-        }
-        .notification {
-            animation: slideIn 0.3s ease-out;
-        }
-    </style>
-</head>
-<body>
-    <div id="root"></div>
-    
-    <script>
-        // Global variables with enhanced biometrics
-        let currentStep = 'welcome';
-        let userProfile = {
-            name: '',
-            age: '',
-            gender: '',
-            weight: '',
-            height: '',
-            activityLevel: '',
-            fitnessGoals: [],
-            medicalConditions: [],
-            bmi: null,
-            bmr: null,
-            maxHeartRate: null
-        };
-        
-        let isExercising = false;
-        let exerciseDuration = 0;
-        let exerciseInterval = null;
-        
-        // Enhanced biometrics with cooldown tracking
-        let biometrics = {
-            heartRate: 72,
-            heartRateZone: 'rest',
-            hydrationLevel: 100,
-            glycogenStores: 100,
-            coreTemp: 37.0,
-            hydrationCooldown: 0,
-            energyCooldown: 0,
-            tempCooldown: 0,
-            lastHydrationAlert: 0,
-            lastEnergyAlert: 0,
-            lastTempAlert: 0
-        };
-        
-        let recommendations = [];
-        let historicalData = [];
-        let medicalReport = null;
-        let reportAnalysis = null;
-        let completedRecommendations = {}; // Track completed recommendations by timestamp
+const { useState, useEffect, useRef } = React;
 
-        // Helper functions
-        function calculateBMI() {
-            if (userProfile.weight && userProfile.height) {
-                const height = parseFloat(userProfile.height) / 100;
-                const weight = parseFloat(userProfile.weight);
-                const age = parseInt(userProfile.age);
-                const bmi = weight / (height * height);
+// Icon components
+const Heart = ({ className = "" }) => <span className={className}>❤️</span>;
+const Droplets = ({ className = "" }) => <span className={className}>💧</span>;
+const Zap = ({ className = "" }) => <span className={className}>⚡</span>;
+const Brain = ({ className = "" }) => <span className={className}>🧠</span>;
+const Activity = ({ className = "" }) => <span className={className}>📊</span>;
+const Thermometer = ({ className = "" }) => <span className={className}>🌡️</span>;
+const Timer = ({ className = "" }) => <span className={className}>⏱️</span>;
+const User = ({ className = "" }) => <span className={className}>👤</span>;
+const AlertCircle = ({ className = "" }) => <span className={className}>⚠️</span>;
+const CheckCircle2 = ({ className = "" }) => <span className={className}>✅</span>;
+const BarChart3 = ({ className = "" }) => <span className={className}>📈</span>;
+const TrendingUp = ({ className = "" }) => <span className={className}>📈</span>;
+const Upload = ({ className = "" }) => <span className={className}>📤</span>;
+const Shield = ({ className = "" }) => <span className={className}>🛡️</span>;
+
+// Enhanced Chart Component
+const SimpleChart = ({ data }) => {
+    if (!data || data.length === 0) return <div className="text-gray-500 text-center">No data yet - Start exercising to see your performance</div>;
+    
+    const maxHR = Math.max(...data.map(d => d.heartRate || 0), 200);
+    const minHR = Math.min(...data.map(d => d.heartRate || 0), 60);
+    const hrRange = maxHR - minHR || 1;
+    
+    return (
+        <div className="h-full w-full bg-gray-50 rounded p-4">
+            <svg width="100%" height="100%" viewBox="0 0 600 240" preserveAspectRatio="none">
+                <defs>
+                    <linearGradient id="heartRateGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" style={{stopColor:'#ef4444', stopOpacity:0.8}} />
+                        <stop offset="100%" style={{stopColor:'#dc2626', stopOpacity:0.8}} />
+                    </linearGradient>
+                    <linearGradient id="hydrationGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" style={{stopColor:'#3b82f6', stopOpacity:0.6}} />
+                        <stop offset="100%" style={{stopColor:'#2563eb', stopOpacity:0.6}} />
+                    </linearGradient>
+                </defs>
                 
-                let bmr;
-                if (userProfile.gender === 'male') {
-                    bmr = 10 * weight + 6.25 * parseFloat(userProfile.height) - 5 * age + 5;
-                } else {
-                    bmr = 10 * weight + 6.25 * parseFloat(userProfile.height) - 5 * age - 161;
-                }
+                {/* Heart Rate Path */}
+                <path
+                    d={data.map((item, i) => {
+                        const x = 20 + (i / (data.length - 1 || 1)) * 560;
+                        const y = 20 + (1 - (item.heartRate - minHR) / hrRange) * 200;
+                        return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+                    }).join(' ')}
+                    fill="none"
+                    stroke="#dc2626"
+                    strokeWidth="3"
+                />
                 
-                userProfile.bmi = bmi.toFixed(1);
-                userProfile.bmr = Math.round(bmr);
-                userProfile.maxHeartRate = 220 - age;
+                {/* Hydration Path */}
+                <path
+                    d={data.map((item, i) => {
+                        const x = 20 + (i / (data.length - 1 || 1)) * 560;
+                        const y = 20 + (1 - item.hydration / 100) * 200;
+                        return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+                    }).join(' ')}
+                    fill="none"
+                    stroke="#3b82f6"
+                    strokeWidth="2"
+                    strokeDasharray="5,5"
+                />
+                
+                {/* Data Points */}
+                {data.map((item, i) => {
+                    const x = 20 + (i / (data.length - 1 || 1)) * 560;
+                    const hrY = 20 + (1 - (item.heartRate - minHR) / hrRange) * 200;
+                    const hydrationY = 20 + (1 - item.hydration / 100) * 200;
+                    
+                    return (
+                        <g key={i}>
+                            <circle cx={x} cy={hrY} r="4" fill="#dc2626" stroke="white" strokeWidth="2">
+                                <title>Time: {item.time}s | HR: {item.heartRate} | Hydration: {Math.round(item.hydration)}%</title>
+                            </circle>
+                            <circle cx={x} cy={hydrationY} r="3" fill="#3b82f6" stroke="white" strokeWidth="2">
+                                <title>Hydration: {Math.round(item.hydration)}%</title>
+                            </circle>
+                        </g>
+                    );
+                })}
+                
+                {/* Labels */}
+                <text x="20" y="235" fontSize="12" fill="#666">0s</text>
+                <text x="580" y="235" fontSize="12" fill="#666" textAnchor="end">{data[data.length - 1]?.time}s</text>
+                <text x="300" y="235" fontSize="12" fill="#dc2626" textAnchor="middle">❤️ Heart Rate</text>
+                <text x="300" y="15" fontSize="12" fill="#3b82f6" textAnchor="middle">💧 Hydration</text>
+            </svg>
+        </div>
+    );
+};
+
+const BioSyncAdvanced = () => {
+    const [currentStep, setCurrentStep] = useState('welcome');
+    const [isExercising, setIsExercising] = useState(false);
+    const [exerciseType, setExerciseType] = useState('running');
+    const [exerciseDuration, setExerciseDuration] = useState(0);
+    
+    // User profile state
+    const [userProfile, setUserProfile] = useState({
+        name: '',
+        age: '',
+        gender: '',
+        weight: '',
+        height: '',
+        activityLevel: '',
+        fitnessGoals: [],
+        medicalConditions: [],
+        bmi: null,
+        bmr: null,
+        maxHeartRate: null
+    });
+
+    // Medical report state
+    const [medicalReport, setMedicalReport] = useState(null);
+    const [reportAnalysis, setReportAnalysis] = useState(null);
+
+    // Enhanced biometrics state with cooldowns
+    const [biometrics, setBiometrics] = useState({
+        heartRate: 72,
+        heartRateZone: 'rest',
+        sweatRate: 0,
+        coreTemp: 37.0,
+        hydrationLevel: 100,
+        electrolyteBalance: { sodium: 140, potassium: 4.0, magnesium: 1.8 },
+        glycogenStores: 100,
+        fatigue: 0,
+        vo2Max: 45,
+        hydrationCooldown: 0,
+        energyCooldown: 0,
+        tempCooldown: 0,
+        lastHydrationAlert: 0,
+        lastEnergyAlert: 0,
+        lastTempAlert: 0
+    });
+
+    const [recommendations, setRecommendations] = useState([]);
+    const [completedRecommendations, setCompletedRecommendations] = useState({});
+    const [alerts, setAlerts] = useState([]);
+    const [historicalData, setHistoricalData] = useState([]);
+    const intervalRef = useRef(null);
+
+    // Calculate BMI and BMR when profile changes
+    useEffect(() => {
+        if (userProfile.weight && userProfile.height && userProfile.age) {
+            const heightInMeters = parseFloat(userProfile.height) / 100;
+            const weight = parseFloat(userProfile.weight);
+            const age = parseInt(userProfile.age);
+            const bmi = weight / (heightInMeters * heightInMeters);
+            
+            let bmr;
+            if (userProfile.gender === 'male') {
+                bmr = 10 * weight + 6.25 * parseFloat(userProfile.height) - 5 * age + 5;
+            } else {
+                bmr = 10 * weight + 6.25 * parseFloat(userProfile.height) - 5 * age - 161;
+            }
+            
+            const maxHR = 220 - age;
+            
+            setUserProfile(prev => ({
+                ...prev,
+                bmi: bmi.toFixed(1),
+                bmr: Math.round(bmr),
+                maxHeartRate: maxHR
+            }));
+        }
+    }, [userProfile.weight, userProfile.height, userProfile.age, userProfile.gender]);
+
+    // Exercise timer
+    useEffect(() => {
+        if (isExercising) {
+            intervalRef.current = setInterval(() => {
+                setExerciseDuration(prev => prev + 1);
+            }, 1000);
+        } else {
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
             }
         }
-        
-        // Enhanced updateBiometrics with cooldown system
-        function updateBiometrics() {
-            const intensity = { running: 2.0, cycling: 1.5, swimming: 1.8, strength: 1.2, yoga: 0.8 };
-            const exerciseType = document.getElementById('exerciseType') ? document.getElementById('exerciseType').value : 'running';
-            const multiplier = intensity[exerciseType] || 1.5;
-            
-            const baseHR = 72;
+        return () => {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+        };
+    }, [isExercising]);
+
+    // Update biometrics and recommendations when exercising
+    useEffect(() => {
+        if (isExercising && exerciseDuration > 0) {
+            updateBiometrics();
+            generateRecommendations();
+            updateHistoricalData();
+        }
+    }, [exerciseDuration, isExercising]);
+
+    // Enhanced updateBiometrics with cooldown system
+    const updateBiometrics = () => {
+        setBiometrics(prev => {
+            const intensityMultiplier = {
+                running: 2.2, cycling: 1.8, swimming: 2.0, strength: 1.5, yoga: 1.2
+            }[exerciseType] || 1.5;
+
+            const baseHR = userProfile.gender === 'male' ? 70 : 75;
             const maxHR = userProfile.maxHeartRate || 190;
-            const targetHR = Math.min(baseHR + (exerciseDuration * multiplier * 0.3), maxHR * 0.85);
-            biometrics.heartRate = Math.round(biometrics.heartRate + (targetHR - biometrics.heartRate) * 0.1);
-            
-            // Update heart rate zone
-            const hrPercent = (biometrics.heartRate - baseHR) / (maxHR - baseHR) * 100;
-            if (hrPercent > 80) biometrics.heartRateZone = 'peak';
-            else if (hrPercent > 70) biometrics.heartRateZone = 'cardio';
-            else if (hrPercent > 60) biometrics.heartRateZone = 'aerobic';
-            else if (hrPercent > 50) biometrics.heartRateZone = 'fat-burn';
-            else if (hrPercent > 0) biometrics.heartRateZone = 'warm-up';
-            else biometrics.heartRateZone = 'rest';
+            const targetHR = Math.min(baseHR + (exerciseDuration * intensityMultiplier * 0.3), maxHR * 0.85);
+            const newHR = prev.heartRate + (targetHR - prev.heartRate) * 0.1;
+
+            const hrPercentage = ((newHR - baseHR) / (maxHR - baseHR)) * 100;
+            let zone = 'rest';
+            if (hrPercentage > 80) zone = 'peak';
+            else if (hrPercentage > 70) zone = 'cardio';
+            else if (hrPercentage > 60) zone = 'aerobic';
+            else if (hrPercentage > 50) zone = 'fat-burn';
+            else if (hrPercentage > 0) zone = 'warm-up';
+
+            const intensityFactor = Math.max(hrPercentage / 100, 0);
+            const bodyWeightFactor = (parseFloat(userProfile.weight) || 70) / 70;
             
             // Decrease cooldowns
-            if (biometrics.hydrationCooldown > 0) {
-                biometrics.hydrationCooldown--;
-            }
-            if (biometrics.energyCooldown > 0) {
-                biometrics.energyCooldown--;
-            }
-            if (biometrics.tempCooldown > 0) {
-                biometrics.tempCooldown--;
+            let newHydrationCooldown = Math.max(prev.hydrationCooldown - 1, 0);
+            let newEnergyCooldown = Math.max(prev.energyCooldown - 1, 0);
+            let newTempCooldown = Math.max(prev.tempCooldown - 1, 0);
+            
+            // Calculate new values based on cooldowns
+            let newHydration = prev.hydrationLevel;
+            if (newHydrationCooldown === 0) {
+                const sweatRate = 0.5 * intensityFactor * bodyWeightFactor;
+                newHydration = Math.max(prev.hydrationLevel - (sweatRate * 0.5), 0);
             }
             
-            // Only decrease hydration if cooldown is over
-            if (biometrics.hydrationCooldown === 0) {
-                const sweatRate = 0.3 * (hrPercent / 100) * (multiplier / 2);
-                biometrics.hydrationLevel = Math.max(biometrics.hydrationLevel - sweatRate, 0);
+            let newGlycogen = prev.glycogenStores;
+            if (newEnergyCooldown === 0) {
+                newGlycogen = Math.max(prev.glycogenStores - (intensityFactor * 0.3), 0);
             }
             
-            // Only decrease energy if cooldown is over
-            if (biometrics.energyCooldown === 0) {
-                const energyBurn = 0.2 * (hrPercent / 100) * (multiplier / 2);
-                biometrics.glycogenStores = Math.max(biometrics.glycogenStores - energyBurn, 0);
-            }
-            
-            // Temperature always increases unless in cooldown
-            if (biometrics.tempCooldown === 0) {
-                biometrics.coreTemp = Math.min(biometrics.coreTemp + 0.01, 39.5);
+            let newCoreTemp = prev.coreTemp;
+            if (newTempCooldown === 0) {
+                newCoreTemp = Math.min(prev.coreTemp + intensityFactor * 0.015, 39.5);
             } else {
                 // Cool down faster when in cooldown
-                biometrics.coreTemp = Math.max(biometrics.coreTemp - 0.02, 37.0);
+                newCoreTemp = Math.max(prev.coreTemp - 0.02, 37.0);
             }
+
+            return {
+                ...prev,
+                heartRate: Math.round(newHR),
+                heartRateZone: zone,
+                sweatRate: 0.5 * intensityFactor * bodyWeightFactor,
+                coreTemp: newCoreTemp,
+                hydrationLevel: newHydration,
+                glycogenStores: newGlycogen,
+                hydrationCooldown: newHydrationCooldown,
+                energyCooldown: newEnergyCooldown,
+                tempCooldown: newTempCooldown
+            };
+        });
+    };
+
+    // Enhanced generateRecommendations with repeated alerts
+    const generateRecommendations = () => {
+        const recs = [];
+
+        // Always show current status
+        recs.push({
+            id: 'status',
+            type: 'status',
+            title: `${userProfile.name}'s AI Analysis`,
+            message: `Monitoring your ${exerciseType} session - ${Math.floor(exerciseDuration/60)}:${(exerciseDuration%60).toString().padStart(2,'0')} elapsed. Heart rate in ${biometrics.heartRateZone} zone.`,
+            icon: Brain,
+            color: 'text-blue-500',
+            bgColor: 'bg-blue-50',
+            actionable: false
+        });
+
+        // HYDRATION - Show again after 60 seconds if still low
+        if (biometrics.hydrationLevel < 90 && (exerciseDuration - biometrics.lastHydrationAlert) > 60) {
+            const waterNeeded = Math.round((100 - biometrics.hydrationLevel) * (parseFloat(userProfile.weight) || 70) * 0.01 * 1000);
+            recs.push({
+                id: `hydration_${exerciseDuration}`,
+                type: 'hydration',
+                title: biometrics.hydrationLevel < 70 ? 'URGENT: Hydration Alert' : 'Hydration Alert',
+                message: `${userProfile.name}, drink ${waterNeeded}ml water to maintain optimal hydration. Your hydration is at ${Math.round(biometrics.hydrationLevel)}%.`,
+                icon: Droplets,
+                color: 'text-blue-500',
+                bgColor: biometrics.hydrationLevel < 70 ? 'bg-red-50' : 'bg-blue-50',
+                actionable: true
+            });
+            setBiometrics(prev => ({ ...prev, lastHydrationAlert: exerciseDuration }));
+        }
+
+        // ENERGY - Show again after 90 seconds if still low
+        if (biometrics.glycogenStores < 70 && (exerciseDuration - biometrics.lastEnergyAlert) > 90) {
+            const baseCarbs = userProfile.gender === 'female' ? 25 : 30;
+            const recommendedCarbs = Math.round(baseCarbs * (exerciseType === 'running' ? 1.2 : 1.0));
             
-            // Update historical data
-            historicalData.push({
+            recs.push({
+                id: `energy_${exerciseDuration}`,
+                type: 'energy',
+                title: 'Energy Management',
+                message: `${userProfile.name}, consume ${recommendedCarbs}g quick carbs to maintain energy. Your glycogen is at ${Math.round(biometrics.glycogenStores)}%.`,
+                icon: Zap,
+                color: 'text-yellow-500',
+                bgColor: 'bg-yellow-50',
+                actionable: true
+            });
+            setBiometrics(prev => ({ ...prev, lastEnergyAlert: exerciseDuration }));
+        }
+
+        // TEMPERATURE - Show again after 120 seconds if still high
+        if (biometrics.coreTemp > 38.0 && (exerciseDuration - biometrics.lastTempAlert) > 120) {
+            recs.push({
+                id: `temp_${exerciseDuration}`,
+                type: 'cooling',
+                title: 'Temperature Rising',
+                message: `${userProfile.name}, core temp at ${biometrics.coreTemp.toFixed(1)}°C. Take a cooling break.`,
+                icon: Thermometer,
+                color: 'text-orange-500',
+                bgColor: 'bg-orange-50',
+                actionable: true
+            });
+            setBiometrics(prev => ({ ...prev, lastTempAlert: exerciseDuration }));
+        }
+
+        // Heart rate zone feedback (non-actionable)
+        if (biometrics.heartRateZone === 'peak') {
+            recs.push({
+                id: 'hr-peak',
+                type: 'intensity',
+                title: 'Peak Zone Alert',
+                message: 'You\'re in peak zone! Consider reducing intensity',
+                icon: Heart,
+                color: 'text-red-500',
+                bgColor: 'bg-red-50',
+                actionable: false
+            });
+        } else if (biometrics.heartRateZone === 'cardio') {
+            recs.push({
+                id: 'hr-cardio',
+                type: 'performance',
+                title: 'Optimal Cardio Zone',
+                message: 'Perfect! You\'re in the cardio zone for maximum benefit',
+                icon: Heart,
+                color: 'text-green-500',
+                bgColor: 'bg-green-50',
+                actionable: false
+            });
+        }
+
+        // Add completed recommendations back
+        Object.values(completedRecommendations).forEach(rec => {
+            if (!recs.find(r => r.id === rec.id)) {
+                recs.push(rec);
+            }
+        });
+
+        setRecommendations(recs);
+    };
+
+    const updateHistoricalData = () => {
+        setHistoricalData(prev => {
+            const newEntry = {
                 time: exerciseDuration,
                 heartRate: biometrics.heartRate,
                 hydration: biometrics.hydrationLevel,
-                glycogen: biometrics.glycogenStores
-            });
-            if (historicalData.length > 30) historicalData.shift();
-            
-            updateRecommendations();
-        }
-        
-        // Enhanced updateRecommendations with repeated alerts
-        function updateRecommendations() {
-            recommendations = [];
-            const exerciseType = document.getElementById('exerciseType') ? document.getElementById('exerciseType').value : 'running';
-            
-            // Always show status
-            recommendations.push({
-                id: 'status',
-                title: `${userProfile.name}'s AI Analysis`,
-                message: `Monitoring your ${exerciseType} session - ${Math.floor(exerciseDuration/60)}:${(exerciseDuration%60).toString().padStart(2,'0')} elapsed. Heart rate in ${biometrics.heartRateZone} zone.`,
-                bgColor: 'bg-blue-50',
-                actionable: false
-            });
+                glycogen: biometrics.glycogenStores,
+                fatigue: biometrics.fatigue || 0
+            };
+            return [...prev.slice(-29), newEntry]; // Keep last 30 entries
+        });
+    };
 
-            // HYDRATION - Show again after 60 seconds if still low
-            if (biometrics.hydrationLevel < 90 && (exerciseDuration - biometrics.lastHydrationAlert) > 60) {
-                const bodyWeight = parseFloat(userProfile.weight) || 70;
-                const waterNeeded = Math.round((100 - biometrics.hydrationLevel) * bodyWeight * 0.015);
-                const exerciseMultiplier = {
-                    running: 1.3, cycling: 1.0, swimming: 0.8, strength: 1.1, yoga: 0.6
-                }[exerciseType];
-                const adjustedWater = Math.round(waterNeeded * exerciseMultiplier);
-                
-                let urgency = '';
-                if (biometrics.hydrationLevel < 70) urgency = 'URGENT:';
-                else if (biometrics.hydrationLevel < 80) urgency = 'Important:';
-                
-                recommendations.push({
-                    id: `hydration_${exerciseDuration}`,
-                    type: 'hydration',
-                    title: `${urgency} Hydration Alert`,
-                    message: `${userProfile.name}, drink ${adjustedWater}ml water now. As a ${userProfile.activityLevel} athlete (${bodyWeight}kg), your body needs extra hydration during ${exerciseType}.`,
-                    bgColor: biometrics.hydrationLevel < 70 ? 'bg-red-50' : 'bg-blue-50',
-                    actionable: true,
-                    value: adjustedWater
-                });
-                biometrics.lastHydrationAlert = exerciseDuration;
-            }
+    // Complete recommendation handler
+    const completeRecommendation = (recId) => {
+        const rec = recommendations.find(r => r.id === recId);
+        if (!rec || !rec.actionable) return;
 
-            // ENERGY - Show again after 90 seconds if still low
-            if (biometrics.glycogenStores < 70 && (exerciseDuration - biometrics.lastEnergyAlert) > 90) {
-                const baseCarbs = userProfile.gender === 'female' ? 25 : 30;
-                const intensityMultiplier = {
-                    running: 1.2, cycling: 1.0, swimming: 1.1, strength: 0.8, yoga: 0.5
-                }[exerciseType];
-                const recommendedCarbs = Math.round(baseCarbs * intensityMultiplier);
-                
-                recommendations.push({
-                    id: `energy_${exerciseDuration}`,
-                    type: 'energy',
-                    title: `Energy Management for ${userProfile.gender.charAt(0).toUpperCase() + userProfile.gender.slice(1)} Athletes`,
-                    message: `${userProfile.name}, consume ${recommendedCarbs}g quick carbs (banana, sports drink). ${userProfile.gender === 'female' ? 'Women' : 'Men'} typically need this amount during ${exerciseType} sessions lasting ${Math.floor(exerciseDuration/60)}+ minutes.`,
-                    bgColor: 'bg-yellow-50',
-                    actionable: true,
-                    value: recommendedCarbs
-                });
-                biometrics.lastEnergyAlert = exerciseDuration;
-            }
+        // Mark as completed
+        const completedRec = { ...rec, completed: true };
+        setCompletedRecommendations(prev => ({ ...prev, [recId]: completedRec }));
 
-            // TEMPERATURE - Show again after 120 seconds if still high
-            if (biometrics.coreTemp > 37.8 && (exerciseDuration - biometrics.lastTempAlert) > 120) {
-                const ageWarning = userProfile.age > 50 ? ' Especially important at your age.' : '';
-                recommendations.push({
-                    id: `temp_${exerciseDuration}`,
-                    type: 'cooling',
-                    title: `Temperature Safety Alert`,
-                    message: `${userProfile.name}, core temp elevated to ${biometrics.coreTemp.toFixed(1)}°C. Take a 2-minute cool-down break.${ageWarning}`,
-                    bgColor: 'bg-red-50',
-                    actionable: true,
-                    value: 2
-                });
-                biometrics.lastTempAlert = exerciseDuration;
-            }
-
-            // Heart rate recommendations (non-actionable)
-            if (biometrics.heartRateZone === 'peak') {
-                const ageGroup = userProfile.age < 25 ? 'young athlete' : userProfile.age > 50 ? 'experienced athlete' : 'athlete';
-                recommendations.push({
-                    id: 'hr-peak',
-                    title: `Peak Zone Alert for ${userProfile.age}-year-old`,
-                    message: `${userProfile.name}, as a ${ageGroup}, reduce intensity to 70-85% max HR (${Math.round(userProfile.maxHeartRate * 0.7)}-${Math.round(userProfile.maxHeartRate * 0.85)} bpm) for optimal ${exerciseType} performance.`,
-                    bgColor: 'bg-red-50',
-                    actionable: false
-                });
-            }
-
-            // Add completed recommendations back
-            Object.keys(completedRecommendations).forEach(key => {
-                if (completedRecommendations[key]) {
-                    recommendations.push(completedRecommendations[key]);
-                }
-            });
-        }
-
-        // Enhanced notification function
-        function showNotification(message) {
-            const notification = document.createElement('div');
-            notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 notification';
-            notification.innerHTML = `
-                <div class="flex items-center">
-                    <span class="text-xl mr-2">✅</span>
-                    <span>${message}</span>
-                </div>
-            `;
-            document.body.appendChild(notification);
-            
-            setTimeout(() => {
-                notification.remove();
-            }, 3000);
-        }
-
-        // Enhanced complete recommendation function
-        function completeRecommendation(recId) {
-            const rec = recommendations.find(r => r.id === recId);
-            if (!rec || !rec.actionable) return;
-            
-            // Mark as completed and store it
-            rec.completed = true;
-            completedRecommendations[recId] = rec;
-            
+        // Apply effects based on type
+        setBiometrics(prev => {
             switch(rec.type) {
                 case 'hydration':
-                    // Increase hydration and set cooldown
-                    biometrics.hydrationLevel = Math.min(100, biometrics.hydrationLevel + 20);
-                    biometrics.hydrationCooldown = 45; // 45 seconds of no decrease
                     showNotification('💧 Hydration restored! You\'ll maintain this level for a while.');
-                    break;
+                    return { ...prev, hydrationLevel: Math.min(100, prev.hydrationLevel + 20), hydrationCooldown: 45 };
                     
                 case 'energy':
-                    // Increase energy and set cooldown
-                    biometrics.glycogenStores = Math.min(100, biometrics.glycogenStores + 25);
-                    biometrics.energyCooldown = 60; // 60 seconds of no decrease
                     showNotification('⚡ Energy boosted! Your glycogen stores are replenished.');
-                    break;
+                    return { ...prev, glycogenStores: Math.min(100, prev.glycogenStores + 25), energyCooldown: 60 };
                     
                 case 'cooling':
-                    // Cool down temperature
-                    biometrics.coreTemp = Math.max(37.0, biometrics.coreTemp - 0.3);
-                    biometrics.heartRate = Math.max(72, biometrics.heartRate - 10);
-                    biometrics.tempCooldown = 30; // 30 seconds of cooling
                     showNotification('🌡️ Cooling down! Your body temperature is normalizing.');
-                    break;
-            }
-            
-            updateDynamicElements();
-        }
-
-        // Screen rendering functions
-        function showWelcome() {
-            currentStep = 'welcome';
-            document.getElementById('root').innerHTML = `
-                <div class="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 flex items-center justify-center p-4">
-                    <div style="background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 24px; padding: 2rem; max-width: 600px; width: 100%; border: 1px solid rgba(255,255,255,0.2); text-align: center;">
-                        <div style="font-size: 4rem; margin-bottom: 1rem;">🧠</div>
-                        <h1 style="font-size: 2.5rem; font-weight: bold; color: white; margin: 1rem 0;">
-                            Welcome to BioSync
-                        </h1>
-                        <p style="color: rgba(255,255,255,0.8); font-size: 1.1rem; margin: 1.5rem 0; line-height: 1.6;">
-                            AI-powered nutrition optimization that adapts to your unique physiology. 
-                            Let's collect your personal information for personalized recommendations.
-                        </p>
-                        <div style="display: flex; align-items: center; justify-content: center; gap: 1rem; margin: 2rem 0;">
-                            <span style="font-size: 2rem;">🛡️</span>
-                            <span style="color: rgba(255,255,255,0.7); font-size: 0.9rem;">
-                                Your data is secure and never shared
-                            </span>
-                        </div>
-                        <button onclick="showProfile()" style="width: 100%; background: linear-gradient(to right, #3b82f6, #8b5cf6); color: white; font-weight: 600; padding: 1rem 2rem; border-radius: 12px; border: none; cursor: pointer; font-size: 1.1rem; transition: all 0.3s;">
-                            Get Started
-                        </button>
-                    </div>
-                </div>
-            `;
-        }
-        
-        function showProfile() {
-            currentStep = 'profile';
-            document.getElementById('root').innerHTML = `
-                <div class="min-h-screen bg-gray-50 py-8">
-                    <div class="max-w-2xl mx-auto px-4">
-                        <div class="bg-white rounded-2xl shadow-xl p-8">
-                            <h2 class="text-3xl font-bold text-gray-800 mb-6">Personal Profile</h2>
-                            <form onsubmit="handleProfileSubmit(event)" class="space-y-6">
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Name *</label>
-                                        <input type="text" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Enter your name" id="userName">
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Age *</label>
-                                        <input type="number" required min="10" max="100" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="25" id="userAge">
-                                    </div>
-                                </div>
-                                
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-3">Gender *</label>
-                                    <div class="flex space-x-6">
-                                        <label class="flex items-center cursor-pointer">
-                                            <input type="radio" name="gender" value="male" required class="mr-2"> Male
-                                        </label>
-                                        <label class="flex items-center cursor-pointer">
-                                            <input type="radio" name="gender" value="female" required class="mr-2"> Female
-                                        </label>
-                                        <label class="flex items-center cursor-pointer">
-                                            <input type="radio" name="gender" value="other" required class="mr-2"> Other
-                                        </label>
-                                    </div>
-                                </div>
-                                
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Weight (kg) *</label>
-                                        <input type="number" required min="30" max="300" step="0.1" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="70" id="userWeight">
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Height (cm) *</label>
-                                        <input type="number" required min="100" max="250" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="175" id="userHeight">
-                                    </div>
-                                </div>
-                                
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Activity Level *</label>
-                                    <select required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" id="activityLevel">
-                                        <option value="">Select your activity level</option>
-                                        <option value="sedentary">Sedentary (desk job, little exercise)</option>
-                                        <option value="light">Light (exercise 1-3 days/week)</option>
-                                        <option value="moderate">Moderate (exercise 3-5 days/week)</option>
-                                        <option value="active">Active (exercise 6-7 days/week)</option>
-                                        <option value="athlete">Athlete (intense daily training)</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Fitness Goals</label>
-                                    <div class="grid grid-cols-2 gap-2">
-                                        ${['Weight Loss', 'Muscle Gain', 'Endurance', 'General Health', 'Performance', 'Recovery'].map(goal => `
-                                            <label class="flex items-center cursor-pointer">
-                                                <input type="checkbox" class="mr-2" id="goal_${goal.replace(' ', '_')}" value="${goal}">
-                                                ${goal}
-                                            </label>
-                                        `).join('')}
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Medical Conditions</label>
-                                    <div class="grid grid-cols-2 gap-2">
-                                        ${['None', 'Diabetes', 'Hypertension', 'Heart Disease', 'Asthma', 'Thyroid'].map(condition => `
-                                            <label class="flex items-center cursor-pointer">
-                                                <input type="checkbox" class="mr-2" id="condition_${condition}" value="${condition}">
-                                                ${condition}
-                                            </label>
-                                        `).join('')}
-                                    </div>
-                                </div>
-                                
-                                <div id="calculatedMetrics" style="display: none;" class="bg-blue-50 rounded-lg p-4">
-                                    <h3 class="font-semibold text-gray-800 mb-2">📊 Your Calculated Metrics:</h3>
-                                    <div class="grid grid-cols-3 gap-4 text-sm">
-                                        <div>
-                                            <span class="text-gray-600">BMI:</span>
-                                            <span class="font-semibold ml-2 text-blue-600" id="bmiDisplay"></span>
-                                        </div>
-                                        <div>
-                                            <span class="text-gray-600">BMR:</span>
-                                            <span class="font-semibold ml-2 text-green-600" id="bmrDisplay"></span>
-                                        </div>
-                                        <div>
-                                            <span class="text-gray-600">Max HR:</span>
-                                            <span class="font-semibold ml-2 text-red-600" id="maxHRDisplay"></span>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <button type="submit" class="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold py-3 rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all">
-                                    Continue to Medical Information →
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            // Add event listeners for real-time calculation
-            setTimeout(() => {
-                ['userName', 'userAge', 'userWeight', 'userHeight'].forEach(id => {
-                    const element = document.getElementById(id);
-                    if (element) {
-                        element.addEventListener('input', updateProfileCalculations);
-                    }
-                });
-                
-                document.querySelectorAll('input[name="gender"]').forEach(radio => {
-                    radio.addEventListener('change', updateProfileCalculations);
-                });
-            }, 100);
-        }
-
-        function updateProfileCalculations() {
-            const name = document.getElementById('userName')?.value;
-            const age = document.getElementById('userAge')?.value;
-            const weight = document.getElementById('userWeight')?.value;
-            const height = document.getElementById('userHeight')?.value;
-            const gender = document.querySelector('input[name="gender"]:checked')?.value;
-            
-            if (age && weight && height && gender) {
-                userProfile.age = age;
-                userProfile.weight = weight;
-                userProfile.height = height;
-                userProfile.gender = gender;
-                
-                calculateBMI();
-                
-                document.getElementById('calculatedMetrics').style.display = 'block';
-                document.getElementById('bmiDisplay').textContent = userProfile.bmi;
-                document.getElementById('bmrDisplay').textContent = userProfile.bmr + ' cal/day';
-                document.getElementById('maxHRDisplay').textContent = userProfile.maxHeartRate + ' bpm';
-            }
-        }
-        
-        function handleProfileSubmit(event) {
-            event.preventDefault();
-            
-            userProfile.name = document.getElementById('userName').value;
-            userProfile.age = document.getElementById('userAge').value;
-            userProfile.weight = document.getElementById('userWeight').value;
-            userProfile.height = document.getElementById('userHeight').value;
-            userProfile.gender = document.querySelector('input[name="gender"]:checked').value;
-            userProfile.activityLevel = document.getElementById('activityLevel').value;
-            
-            // Collect fitness goals
-            userProfile.fitnessGoals = [];
-            ['Weight Loss', 'Muscle Gain', 'Endurance', 'General Health', 'Performance', 'Recovery'].forEach(goal => {
-                const checkbox = document.getElementById(`goal_${goal.replace(' ', '_')}`);
-                if (checkbox && checkbox.checked) {
-                    userProfile.fitnessGoals.push(goal);
-                }
-            });
-            
-            // Collect medical conditions
-            userProfile.medicalConditions = [];
-            ['None', 'Diabetes', 'Hypertension', 'Heart Disease', 'Asthma', 'Thyroid'].forEach(condition => {
-                const checkbox = document.getElementById(`condition_${condition}`);
-                if (checkbox && checkbox.checked) {
-                    userProfile.medicalConditions.push(condition);
-                }
-            });
-            
-            calculateBMI();
-            showMedical();
-        }
-
-        function showMedical() {
-            currentStep = 'medical';
-            document.getElementById('root').innerHTML = `
-                <div class="min-h-screen bg-gray-50 py-8">
-                    <div class="max-w-2xl mx-auto px-4">
-                        <div class="bg-white rounded-2xl shadow-xl p-8">
-                            <h2 class="text-3xl font-bold text-gray-800 mb-6">Medical Information</h2>
-                            <p class="text-gray-600 mb-8">
-                                Upload your recent medical report for personalized nutrition recommendations. 
-                                This step is optional but highly recommended for the most accurate guidance.
-                            </p>
-
-                            <div class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center mb-6 hover:border-blue-400 transition-colors">
-                                <div style="font-size: 3rem; margin-bottom: 1rem;">📤</div>
-                                <h3 class="text-xl font-semibold mb-2">Upload Medical Report</h3>
-                                <p class="text-gray-600 mb-4">PDF, JPG, PNG, or any image format (Max 10MB)</p>
-                                <input type="file" accept=".pdf,.jpg,.jpeg,.png,.gif,.bmp" onchange="handleFileUpload(event)" class="hidden" id="medical-upload">
-                                <label for="medical-upload" class="inline-block bg-blue-500 text-white px-6 py-3 rounded-lg cursor-pointer hover:bg-blue-600 transition-colors font-medium">
-                                    Choose File
-                                </label>
-                            </div>
-
-                            <div id="uploadStatus" style="display: none;" class="bg-green-50 border-l-4 border-green-400 p-4 mb-6">
-                                <div class="flex items-center">
-                                    <span style="font-size: 1.5rem; margin-right: 0.75rem;">✅</span>
-                                    <div>
-                                        <p class="font-semibold text-green-800">File Uploaded Successfully!</p>
-                                        <p class="text-green-700" id="fileName"></p>
-                                        <p class="text-sm text-green-600 mt-1">Analyzing your medical data...</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div id="analysisResults" style="display: none;" class="bg-blue-50 rounded-xl p-6 mb-6">
-                                <h3 class="font-semibold text-lg mb-4">🔬 Medical Report Analysis Results</h3>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                    <div class="bg-white p-4 rounded-lg">
-                                        <div class="flex justify-between items-center">
-                                            <span class="font-medium">Blood Glucose:</span>
-                                            <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold">
-                                                Normal
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div class="bg-white p-4 rounded-lg">
-                                        <div class="flex justify-between items-center">
-                                            <span class="font-medium">Cholesterol:</span>
-                                            <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold">
-                                                Normal
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div class="bg-white p-4 rounded-lg">
-                                    <h4 class="font-semibold mb-2">🎯 Personalized Recommendations:</h4>
-                                    <ul class="space-y-1">
-                                        <li class="flex items-start text-sm">
-                                            <span class="text-blue-500 mr-2">•</span>
-                                            <span>Monitor hydration during exercise</span>
-                                        </li>
-                                        <li class="flex items-start text-sm">
-                                            <span class="text-blue-500 mr-2">•</span>
-                                            <span>Maintain balanced nutrition with adequate protein</span>
-                                        </li>
-                                        <li class="flex items-start text-sm">
-                                            <span class="text-blue-500 mr-2">•</span>
-                                            <span>Consider electrolyte supplementation for longer workouts</span>
-                                        </li>
-                                    </ul>
-                                </div>
-                            </div>
-
-                            <div class="bg-gray-50 rounded-xl p-4 mb-6">
-                                <div class="flex items-start">
-                                    <span style="font-size: 2rem; margin-right: 0.75rem;">🛡️</span>
-                                    <div>
-                                        <h4 class="font-semibold mb-1">Privacy & Security</h4>
-                                        <p class="text-sm text-gray-600">
-                                            Your medical data is processed locally in your browser and never stored on our servers. 
-                                            All analysis happens in real-time and your data is completely private.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="flex space-x-4">
-                                <button onclick="showProfile()" class="flex-1 bg-gray-200 text-gray-800 font-semibold py-3 rounded-lg hover:bg-gray-300 transition-colors">
-                                    ← Back
-                                </button>
-                                <button onclick="showDashboard()" class="flex-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold py-3 rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all">
-                                    <span id="continueText">Skip & Continue</span> 🚀
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-        
-        function handleFileUpload(event) {
-            const file = event.target.files[0];
-            if (file) {
-                medicalReport = file;
-                
-                // Show upload status
-                document.getElementById('uploadStatus').style.display = 'block';
-                document.getElementById('fileName').textContent = file.name;
-                document.getElementById('continueText').textContent = 'Start BioSync';
-                
-                // Simulate analysis after 2 seconds
-                setTimeout(() => {
-                    reportAnalysis = {
-                        glucose: Math.random() > 0.7 ? 'normal' : 'low',
-                        cholesterol: Math.random() > 0.6 ? 'normal' : 'high',
-                        hemoglobin: Math.random() > 0.8 ? 'normal' : 'low',
-                        recommendations: [
-                            'Monitor hydration during exercise',
-                            'Maintain balanced nutrition with adequate protein',
-                            'Consider electrolyte supplementation for longer workouts'
-                        ]
+                    return { 
+                        ...prev, 
+                        coreTemp: Math.max(37.0, prev.coreTemp - 0.3), 
+                        heartRate: Math.max(72, prev.heartRate - 10),
+                        tempCooldown: 30 
                     };
-                    document.getElementById('analysisResults').style.display = 'block';
-                }, 2000);
+                    
+                default:
+                    return prev;
             }
-        }
+        });
+    };
 
-        function showDashboard() {
-            currentStep = 'dashboard';
-            renderDashboard();
-        }
+    // Notification function
+    const showNotification = (message) => {
+        const notification = document.createElement('div');
+        notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-pulse';
+        notification.style.animation = 'slideIn 0.3s ease-out';
+        notification.innerHTML = `
+            <div class="flex items-center">
+                <span class="text-xl mr-2">✅</span>
+                <span>${message}</span>
+            </div>
+        `;
+        document.body.appendChild(notification);
         
-        function renderDashboard() {
-            document.getElementById('root').innerHTML = `
-                <div class="min-h-screen bg-gray-50">
-                    <!-- Header -->
-                    <header class="bg-white shadow-sm border-b">
-                        <div class="max-w-7xl mx-auto px-4 py-4">
-                            <div class="flex items-center justify-between">
-                                <div class="flex items-center space-x-3">
-                                    <span style="font-size: 2rem;">🧠</span>
-                                    <div>
-                                        <h1 class="text-2xl font-bold">BioSync</h1>
-                                        <p class="text-sm text-gray-600">Welcome back, ${userProfile.name}!</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-center space-x-4">
-                                    <select id="exerciseType" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" ${isExercising ? 'disabled' : ''}>
-                                        <option value="running">🏃 Running</option>
-                                        <option value="cycling">🚴 Cycling</option>
-                                        <option value="swimming">🏊 Swimming</option>
-                                        <option value="strength">💪 Strength</option>
-                                        <option value="yoga">🧘 Yoga</option>
-                                    </select>
-                                    <button onclick="toggleExercise()" class="px-6 py-2 rounded-lg font-semibold text-white transition-all ${isExercising ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}">
-                                        ${isExercising ? '⏹️ Stop' : '▶️ Start'}
-                                    </button>
-                                    ${isExercising ? `<div class="font-mono text-lg font-bold text-blue-600 animate-pulse">${Math.floor(exerciseDuration / 60)}:${(exerciseDuration % 60).toString().padStart(2, '0')}</div>` : ''}
-                                </div>
-                            </div>
-                        </div>
-                    </header>
+        setTimeout(() => {
+            notification.remove();
+        }, 3000);
+    };
 
-                    <!-- User Info Bar -->
-                    <div class="bg-blue-50 border-b px-4 py-3">
-                        <div class="max-w-7xl mx-auto flex items-center justify-between text-sm">
-                            <div class="flex items-center space-x-6">
-                                <span>👤 <strong>Age:</strong> ${userProfile.age}</span>
-                                <span>📏 <strong>BMI:</strong> ${userProfile.bmi}</span>
-                                <span>🏃 <strong>Level:</strong> ${userProfile.activityLevel}</span>
-                                <span>❤️ <strong>Max HR:</strong> ${userProfile.maxHeartRate} bpm</span>
-                                ${isExercising ? '<span class="text-green-600 font-bold animate-pulse">🟢 EXERCISE ACTIVE</span>' : ''}
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Main Dashboard -->
-                    <main class="max-w-7xl mx-auto px-4 py-8">
-                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            <!-- Biometric Cards -->
-                            <div class="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <!-- Heart Rate Card -->
-                                <div class="bg-red-50 rounded-xl p-4 hover:shadow-lg transition-all">
-                                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">❤️</div>
-                                    <div class="text-2xl font-bold" id="heartRateDisplay">${biometrics.heartRate}</div>
-                                    <div class="text-sm text-gray-600">Heart Rate</div>
-                                    <div class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full mt-2 inline-block" id="heartRateZone">
-                                        ${biometrics.heartRateZone}
-                                    </div>
-                                </div>
-                                
-                                <!-- Hydration Card -->
-                                <div class="bg-blue-50 rounded-xl p-4 hover:shadow-lg transition-all">
-                                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">💧</div>
-                                    <div class="text-2xl font-bold" id="hydrationDisplay">${Math.round(biometrics.hydrationLevel)}%</div>
-                                    <div class="text-sm text-gray-600">Hydration</div>
-                                    <div class="w-full bg-gray-200 rounded-full h-2 mt-2">
-                                        <div id="hydrationBar" class="bg-blue-500 h-2 rounded-full transition-all duration-500" style="width: ${biometrics.hydrationLevel}%"></div>
-                                    </div>
-                                    ${biometrics.hydrationCooldown > 0 ? `<div class="text-xs text-green-600 mt-1">Protected: ${biometrics.hydrationCooldown}s</div>` : ''}
-                                </div>
-                                
-                                <!-- Energy Card -->
-                                <div class="bg-yellow-50 rounded-xl p-4 hover:shadow-lg transition-all">
-                                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">⚡</div>
-                                    <div class="text-2xl font-bold" id="energyDisplay">${Math.round(biometrics.glycogenStores)}%</div>
-                                    <div class="text-sm text-gray-600">Energy</div>
-                                    <div class="w-full bg-gray-200 rounded-full h-2 mt-2">
-                                        <div id="energyBar" class="bg-yellow-500 h-2 rounded-full transition-all duration-500" style="width: ${biometrics.glycogenStores}%"></div>
-                                    </div>
-                                    ${biometrics.energyCooldown > 0 ? `<div class="text-xs text-green-600 mt-1">Protected: ${biometrics.energyCooldown}s</div>` : ''}
-                                </div>
-                                
-                                <!-- Temperature Card -->
-                                <div class="bg-orange-50 rounded-xl p-4 hover:shadow-lg transition-all">
-                                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🌡️</div>
-                                    <div class="text-2xl font-bold" id="tempDisplay">${biometrics.coreTemp.toFixed(1)}°C</div>
-                                    <div class="text-sm text-gray-600">Core Temp</div>
-                                    <div class="text-xs mt-2 px-2 py-1 rounded-full inline-block ${biometrics.coreTemp > 38.0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}" id="tempStatus">
-                                        ${biometrics.coreTemp > 38.0 ? '⚠️ High' : '✅ Normal'}
-                                    </div>
-                                    ${biometrics.tempCooldown > 0 ? `<div class="text-xs text-blue-600 mt-1">Cooling: ${biometrics.tempCooldown}s</div>` : ''}
-                                </div>
-                            </div>
-
-                            <!-- AI Recommendations -->
-                            <div class="bg-white rounded-xl shadow-lg p-6">
-                                <h3 class="text-lg font-semibold mb-4 flex items-center">
-                                    🧠 AI Recommendations
-                                </h3>
-                                <div id="recommendationsContainer" class="space-y-3 max-h-96 overflow-y-auto">
-                                    <!-- Recommendations will be updated dynamically -->
-                                </div>
-                            </div>
-
-                            <!-- Performance Chart -->
-                            <div class="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">
-                                <h3 class="text-lg font-semibold mb-4">📊 Real-Time Performance</h3>
-                                <div class="h-64 bg-gray-50 rounded-lg p-4">
-                                    <svg id="performanceChart" width="100%" height="100%" viewBox="0 0 600 240" preserveAspectRatio="none">
-                                        <!-- Chart will be drawn here -->
-                                    </svg>
-                                </div>
-                                
-                                <div id="statsContainer" class="mt-4">
-                                    <!-- Stats will be updated dynamically -->
-                                </div>
-                            </div>
-
-                            <!-- Personal Stats -->
-                            <div class="bg-white rounded-xl shadow-lg p-6">
-                                <h3 class="text-lg font-semibold mb-4 flex items-center">
-                                    👤 Your Personal Stats
-                                </h3>
-                                <div class="space-y-4">
-                                    <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                                        <span class="text-gray-600">🔥 Daily Calories:</span>
-                                        <span class="font-bold text-orange-600">${Math.round((userProfile.bmr || 1680) * 1.5)} cal</span>
-                                    </div>
-                                    <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                                        <span class="text-gray-600">💧 Water Needs:</span>
-                                        <span class="font-bold text-blue-600">${Math.round((parseFloat(userProfile.weight) || 70) * 35)} ml/day</span>
-                                    </div>
-                                    <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                                        <span class="text-gray-600">🎯 Goals:</span>
-                                        <span class="font-bold text-purple-600 text-sm">${userProfile.fitnessGoals.slice(0, 2).join(', ') || 'General Health'}</span>
-                                    </div>
-                                    <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                                        <span class="text-gray-600">📈 Status:</span>
-                                        <span class="font-bold ${isExercising ? 'text-green-600' : 'text-gray-600'}" id="exerciseStatus">${isExercising ? '🏃 Exercising' : '😌 Resting'}</span>
-                                    </div>
-                                    ${userProfile.medicalConditions.length > 0 && userProfile.medicalConditions[0] !== 'None' ? `
-                                        <div class="p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
-                                            <span class="text-sm font-medium text-yellow-800">⚠️ Medical Conditions:</span>
-                                            <p class="text-sm text-yellow-700 mt-1">
-                                                ${userProfile.medicalConditions.filter(c => c !== 'None').join(', ')}
-                                            </p>
-                                        </div>
-                                    ` : ''}
-                                </div>
-                            </div>
-                        </div>
-                    </main>
-                </div>
-            `;
-            
-            // Initial update of dynamic elements
-            updateDynamicElements();
+    const handleProfileSubmit = (e) => {
+        e.preventDefault();
+        if (userProfile.name && userProfile.age && userProfile.gender && userProfile.weight && userProfile.height) {
+            setCurrentStep('medical');
         }
+    };
 
-        // Function to update only the dynamic parts
-        function updateDynamicElements() {
-            // Update biometric displays
-            const heartRateEl = document.getElementById('heartRateDisplay');
-            if (heartRateEl) heartRateEl.textContent = biometrics.heartRate;
+    const handleMedicalReportUpload = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setMedicalReport(file);
             
-            const heartRateZoneEl = document.getElementById('heartRateZone');
-            if (heartRateZoneEl) heartRateZoneEl.textContent = biometrics.heartRateZone;
-            
-            const hydrationEl = document.getElementById('hydrationDisplay');
-            if (hydrationEl) hydrationEl.textContent = Math.round(biometrics.hydrationLevel) + '%';
-            
-            const hydrationBar = document.getElementById('hydrationBar');
-            if (hydrationBar) {
-                hydrationBar.style.width = biometrics.hydrationLevel + '%';
-                // Show cooldown indicator
-                const hydrationCard = hydrationBar.closest('.bg-blue-50');
-                if (hydrationCard) {
-                    const cooldownEl = hydrationCard.querySelector('.text-green-600');
-                    if (biometrics.hydrationCooldown > 0) {
-                        if (!cooldownEl) {
-                            hydrationCard.innerHTML += `<div class="text-xs text-green-600 mt-1">Protected: ${biometrics.hydrationCooldown}s</div>`;
-                        } else {
-                            cooldownEl.textContent = `Protected: ${biometrics.hydrationCooldown}s`;
-                        }
-                    } else if (cooldownEl) {
-                        cooldownEl.remove();
-                    }
-                }
-            }
-            
-            const energyEl = document.getElementById('energyDisplay');
-            if (energyEl) energyEl.textContent = Math.round(biometrics.glycogenStores) + '%';
-            
-            const energyBar = document.getElementById('energyBar');
-            if (energyBar) {
-                energyBar.style.width = biometrics.glycogenStores + '%';
-                // Show cooldown indicator
-                const energyCard = energyBar.closest('.bg-yellow-50');
-                if (energyCard) {
-                    const cooldownEl = energyCard.querySelector('.text-green-600');
-                    if (biometrics.energyCooldown > 0) {
-                        if (!cooldownEl) {
-                            energyCard.innerHTML += `<div class="text-xs text-green-600 mt-1">Protected: ${biometrics.energyCooldown}s</div>`;
-                        } else {
-                            cooldownEl.textContent = `Protected: ${biometrics.energyCooldown}s`;
-                        }
-                    } else if (cooldownEl) {
-                        cooldownEl.remove();
-                    }
-                }
-            }
-            
-            const tempEl = document.getElementById('tempDisplay');
-            if (tempEl) tempEl.textContent = biometrics.coreTemp.toFixed(1) + '°C';
-            
-            const tempStatus = document.getElementById('tempStatus');
-            if (tempStatus) {
-                tempStatus.textContent = biometrics.coreTemp > 38.0 ? '⚠️ High' : '✅ Normal';
-                tempStatus.className = `text-xs mt-2 px-2 py-1 rounded-full inline-block ${biometrics.coreTemp > 38.0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`;
-                
-                // Show cooldown indicator
-                const tempCard = tempStatus.closest('.bg-orange-50');
-                if (tempCard) {
-                    const cooldownEl = tempCard.querySelector('.text-blue-600');
-                    if (biometrics.tempCooldown > 0) {
-                        if (!cooldownEl) {
-                            tempCard.innerHTML += `<div class="text-xs text-blue-600 mt-1">Cooling: ${biometrics.tempCooldown}s</div>`;
-                        } else {
-                            cooldownEl.textContent = `Cooling: ${biometrics.tempCooldown}s`;
-                        }
-                    } else if (cooldownEl) {
-                        cooldownEl.remove();
-                    }
-                }
-            }
-            
-            // Update recommendations
-            updateRecommendationsDisplay();
-            
-            // Update performance chart
-            updatePerformanceChart();
-            
-            // Update stats
-            updateStatsDisplay();
-        }
-
-        // Function to update recommendations display
-        function updateRecommendationsDisplay() {
-            const container = document.getElementById('recommendationsContainer');
-            if (!container) return;
-            
-            if (recommendations.length > 0) {
-                container.innerHTML = recommendations.map((rec) => `
-                    <div class="${rec.bgColor} rounded-lg p-3 border-l-4 border-blue-500 ${rec.completed ? 'opacity-50' : ''}">
-                        <h4 class="font-semibold text-sm ${rec.completed ? 'line-through' : ''}">${rec.title}</h4>
-                        <p class="text-xs text-gray-700 mt-1">${rec.message}</p>
-                        ${rec.actionable && !rec.completed ? `
-                            <button onclick="completeRecommendation('${rec.id}')" class="mt-2 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-all">
-                                ✓ Done
-                            </button>
-                        ` : ''}
-                        ${rec.completed ? '<span class="text-xs text-green-600 mt-2 inline-block">✅ Completed</span>' : ''}
-                    </div>
-                `).join('');
-            } else {
-                container.innerHTML = `
-                    <div class="text-center py-8">
-                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">📊</div>
-                        <p class="text-gray-500">${isExercising ? 'AI analyzing your performance...' : 'Start exercising to receive AI recommendations!'}</p>
-                    </div>
-                `;
-            }
-            
-            // Add medical recommendations if available
-            if (reportAnalysis && reportAnalysis.recommendations) {
-                container.innerHTML += `
-                    <div class="mt-4 pt-4 border-t">
-                        <h4 class="font-semibold text-sm mb-2">📋 From your medical report:</h4>
-                        <ul class="text-xs text-gray-600 space-y-1">
-                            ${reportAnalysis.recommendations.map(rec => `
-                                <li class="flex items-start">
-                                    <span class="mr-2">•</span>
-                                    <span>${rec}</span>
-                                </li>
-                            `).join('')}
-                        </ul>
-                    </div>
-                `;
-            }
-        }
-
-        // Function to update performance chart using SVG
-        function updatePerformanceChart() {
-            const svg = document.getElementById('performanceChart');
-            if (!svg || historicalData.length === 0) return;
-            
-            const width = 600;
-            const height = 240;
-            const padding = 20;
-            const chartWidth = width - (padding * 2);
-            const chartHeight = height - (padding * 2);
-            
-            // Clear existing chart
-            svg.innerHTML = '';
-            
-            // Create gradient definitions
-            svg.innerHTML += `
-                <defs>
-                    <linearGradient id="heartRateGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" style="stop-color:#ef4444;stop-opacity:0.8" />
-                        <stop offset="100%" style="stop-color:#dc2626;stop-opacity:0.8" />
-                    </linearGradient>
-                    <linearGradient id="hydrationGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:0.6" />
-                        <stop offset="100%" style="stop-color:#2563eb;stop-opacity:0.6" />
-                    </linearGradient>
-                </defs>
-            `;
-            
-            // Calculate scales
-            const maxHR = Math.max(...historicalData.map(d => d.heartRate), 200);
-            const minHR = Math.min(...historicalData.map(d => d.heartRate), 60);
-            const hrRange = maxHR - minHR || 1;
-            
-            // Create paths for heart rate line
-            const hrPathData = historicalData.map((data, i) => {
-                const x = padding + (i / (historicalData.length - 1 || 1)) * chartWidth;
-                const y = padding + (1 - (data.heartRate - minHR) / hrRange) * chartHeight;
-                return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
-            }).join(' ');
-            
-            // Create path for hydration line
-            const hydrationPathData = historicalData.map((data, i) => {
-                const x = padding + (i / (historicalData.length - 1 || 1)) * chartWidth;
-                const y = padding + (1 - data.hydration / 100) * chartHeight;
-                return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
-            }).join(' ');
-            
-            // Add area fills
-            const hrAreaPath = hrPathData + ` L ${padding + chartWidth} ${padding + chartHeight} L ${padding} ${padding + chartHeight} Z`;
-            svg.innerHTML += `<path d="${hrAreaPath}" fill="url(#heartRateGradient)" opacity="0.3" />`;
-            
-            // Add lines
-            svg.innerHTML += `<path d="${hrPathData}" fill="none" stroke="#dc2626" stroke-width="3" />`;
-            svg.innerHTML += `<path d="${hydrationPathData}" fill="none" stroke="#3b82f6" stroke-width="2" stroke-dasharray="5,5" />`;
-            
-            // Add dots for each data point
-            historicalData.forEach((data, i) => {
-                const x = padding + (i / (historicalData.length - 1 || 1)) * chartWidth;
-                const hrY = padding + (1 - (data.heartRate - minHR) / hrRange) * chartHeight;
-                const hydrationY = padding + (1 - data.hydration / 100) * chartHeight;
-                
-                // Heart rate dot
-                svg.innerHTML += `
-                    <circle cx="${x}" cy="${hrY}" r="4" fill="#dc2626" stroke="white" stroke-width="2">
-                        <title>Time: ${data.time}s | HR: ${data.heartRate} | Hydration: ${Math.round(data.hydration)}%</title>
-                    </circle>
-                `;
-                
-                // Hydration dot (smaller)
-                svg.innerHTML += `
-                    <circle cx="${x}" cy="${hydrationY}" r="3" fill="#3b82f6" stroke="white" stroke-width="2">
-                        <title>Hydration: ${Math.round(data.hydration)}%</title>
-                    </circle>
-                `;
-            });
-            
-            // Add axis labels
-            svg.innerHTML += `
-                <text x="${padding}" y="${height - 5}" font-size="12" fill="#666">0s</text>
-                <text x="${width - padding}" y="${height - 5}" font-size="12" fill="#666" text-anchor="end">${exerciseDuration}s</text>
-                <text x="${width / 2}" y="${height - 5}" font-size="12" fill="#dc2626" text-anchor="middle">❤️ Heart Rate</text>
-                <text x="${width / 2}" y="15" font-size="12" fill="#3b82f6" text-anchor="middle">💧 Hydration</text>
-            `;
-        }
-
-        // Function to update stats display
-        function updateStatsDisplay() {
-            const container = document.getElementById('statsContainer');
-            if (!container || !isExercising || historicalData.length === 0) return;
-            
-            container.innerHTML = `
-                <div class="grid grid-cols-4 gap-4 text-center">
-                    <div class="bg-red-50 p-3 rounded-lg">
-                        <p class="text-sm text-gray-600">Avg Heart Rate</p>
-                        <p class="text-lg font-bold text-red-600">
-                            ${Math.round(historicalData.reduce((sum, d) => sum + d.heartRate, 0) / historicalData.length)}
-                        </p>
-                    </div>
-                    <div class="bg-orange-50 p-3 rounded-lg">
-                        <p class="text-sm text-gray-600">Calories Burned</p>
-                        <p class="text-lg font-bold text-orange-600">
-                            ${Math.round(exerciseDuration * 0.15 * (parseFloat(userProfile.weight) || 70) / 60)}
-                        </p>
-                    </div>
-                    <div class="bg-blue-50 p-3 rounded-lg">
-                        <p class="text-sm text-gray-600">Avg Hydration</p>
-                        <p class="text-lg font-bold text-blue-600">
-                            ${Math.round(historicalData.reduce((sum, d) => sum + d.hydration, 0) / historicalData.length)}%
-                        </p>
-                    </div>
-                    <div class="bg-purple-50 p-3 rounded-lg">
-                        <p class="text-sm text-gray-600">Duration</p>
-                        <p class="text-lg font-bold text-purple-600">
-                            ${Math.floor(exerciseDuration / 60)}:${(exerciseDuration % 60).toString().padStart(2, '0')}
-                        </p>
-                    </div>
-                </div>
-            `;
-        }
-
-        // Toggle exercise function
-        function toggleExercise() {
-            if (!isExercising) {
-                // Start exercise
-                isExercising = true;
-                exerciseDuration = 0;
-                historicalData = [];
-                recommendations = [];
-                completedRecommendations = {};
-                
-                // Reset alert timings
-                biometrics.lastHydrationAlert = 0;
-                biometrics.lastEnergyAlert = 0;
-                biometrics.lastTempAlert = 0;
-                
-                exerciseInterval = setInterval(() => {
-                    exerciseDuration++;
-                    updateBiometrics();
-                    updateDynamicElements();
-                }, 1000);
-            } else {
-                // Stop exercise
-                isExercising = false;
-                if (exerciseInterval) {
-                    clearInterval(exerciseInterval);
-                    exerciseInterval = null;
-                }
-                
-                // Reset biometrics
-                biometrics = {
-                    heartRate: 72,
-                    heartRateZone: 'rest',
-                    hydrationLevel: 100,
-                    glycogenStores: 100,
-                    coreTemp: 37.0,
-                    hydrationCooldown: 0,
-                    energyCooldown: 0,
-                    tempCooldown: 0,
-                    lastHydrationAlert: 0,
-                    lastEnergyAlert: 0,
-                    lastTempAlert: 0
+            // Simulate analysis
+            setTimeout(() => {
+                const analysis = {
+                    glucose: Math.random() > 0.7 ? 'normal' : 'low',
+                    cholesterol: Math.random() > 0.6 ? 'normal' : 'high',
+                    hemoglobin: Math.random() > 0.8 ? 'normal' : 'low',
+                    vitamins: { d: Math.random() > 0.5 ? 'normal' : 'low' },
+                    recommendations: [
+                        'Monitor blood sugar during exercise', 
+                        'Consider vitamin D supplementation',
+                        'Stay hydrated during workouts',
+                        'Maintain electrolyte balance'
+                    ]
                 };
-                recommendations = [];
-                completedRecommendations = {};
-                
-                renderDashboard();
-            }
+                setReportAnalysis(analysis);
+            }, 2000);
         }
-        
-        // Initialize the app
-        showWelcome();
-        
-    </script>
-</body>
-</html>
+    };
 
-        
+    const formatDuration = (seconds) => {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = seconds % 60;
+        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    const getZoneColor = (zone) => {
+        const colors = {
+            rest: 'bg-gray-100 text-gray-600',
+            'warm-up': 'bg-blue-100 text-blue-600',
+            'fat-burn': 'bg-green-100 text-green-600',
+            aerobic: 'bg-yellow-100 text-yellow-600',
+            cardio: 'bg-orange-100 text-orange-600',
+            peak: 'bg-red-100 text-red-600'
+        };
+        return colors[zone] || 'bg-gray-100 text-gray-600';
+    };
+
+    // Toggle exercise function
+    const toggleExercise = () => {
+        if (!isExercising) {
+            setIsExercising(true);
+            setExerciseDuration(0);
+            setHistoricalData([]);
+            setRecommendations([]);
+            setCompletedRecommendations({});
+            setBiometrics(prev => ({
+                ...prev,
+                lastHydrationAlert: 0,
+                lastEnergyAlert: 0,
+                lastTempAlert: 0
+            }));
+        } else {
+            setIsExercising(false);
+            setExerciseDuration(0);
+            setBiometrics({
+                heartRate: 72,
+                heartRateZone: 'rest',
+                sweatRate: 0,
+                coreTemp: 37.0,
+                hydrationLevel: 100,
+                electrolyteBalance: { sodium: 140, potassium: 4.0, magnesium: 1.8 },
+                glycogenStores: 100,
+                fatigue: 0,
+                vo2Max: 45,
+                hydrationCooldown: 0,
+                energyCooldown: 0,
+                tempCooldown: 0,
+                lastHydrationAlert: 0,
+                lastEnergyAlert: 0,
+                lastTempAlert: 0
+            });
+            setRecommendations([]);
+            setCompletedRecommendations({});
+        }
+    };
+
+    // WELCOME SCREEN
+    if (currentStep === 'welcome') {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 flex items-center justify-center">
+                <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 max-w-2xl mx-4 border border-white/20">
+                    <Brain className="text-6xl mx-auto mb-6 block" />
+                    <h1 className="text-4xl font-bold text-white mb-4 text-center">Welcome to BioSync</h1>
+                    <p className="text-white/80 text-lg mb-8 text-center">
+                        AI-powered nutrition optimization that adapts to your unique physiology. 
+                        Let's personalize your experience with your health data.
+                    </p>
+                    <div className="flex items-center justify-center space-x-4 mb-8">
+                        <Shield className="text-3xl" />
+                        <p className="text-white/70 text-sm">Your data is secure and never shared</p>
+                    </div>
+                    <button
+                        onClick={() => setCurrentStep('profile')}
+                        className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold py-4 rounded-xl hover:from-blue-600 hover:to-purple-600 transition-all"
+                    >
+                        Get Started
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // PROFILE SETUP SCREEN
+    if (currentStep === 'profile') {
+        return (
+            <div className="min-h-screen bg-gray-50 py-8">
+                <div className="max-w-2xl mx-auto px-4">
+                    <div className="bg-white rounded-2xl shadow-xl p-8">
+                        <h2 className="text-3xl font-bold text-gray-800 mb-6">Personal Profile</h2>
+                        <form onSubmit={handleProfileSubmit} className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        value={userProfile.name}
+                                        onChange={(e) => setUserProfile({...userProfile, name: e.target.value})}
+                                        placeholder="John Doe"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Age</label>
+                                    <input
+                                        type="number"
+                                        required
+                                        min="10"
+                                        max="100"
+                                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        value={userProfile.age}
+                                        onChange={(e) => setUserProfile({...userProfile, age: e.target.value})}
+                                        placeholder="25"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
+                                <div className="flex space-x-4">
+                                    {['male', 'female', 'other'].map(gender => (
+                                        <label key={gender} className="flex items-center cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="gender"
+                                                value={gender}
+                                                required
+                                                className="mr-2"
+                                                checked={userProfile.gender === gender}
+                                                onChange={(e) => setUserProfile({...userProfile, gender: e.target.value})}
+                                            />
+                                            {gender.charAt(0).toUpperCase() + gender.slice(1)}
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Weight (kg)</label>
+                                    <input
+                                        type="number"
+                                        required
+                                        min="30"
+                                        max="300"
+                                        step="0.1"
+                                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        value={userProfile.weight}
+                                        onChange={(e) => setUserProfile({...userProfile, weight: e.target.value})}
+                                        placeholder="70"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Height (cm)</label>
+                                    <input
+                                        type="number"
+                                        required
+                                        min="100"
+                                        max="250"
+                                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        value={userProfile.height}
+                                        onChange={(e) => setUserProfile({...userProfile, height: e.target.value})}
+                                        placeholder="175"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Activity Level</label>
+                                <select
+                                    required
+                                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    value={userProfile.activityLevel}
+                                    onChange={(e) => setUserProfile({...userProfile, activityLevel: e.target.value})}
+                                >
+                                    <option value="">Select activity level</option>
+                                    <option value="sedentary">Sedentary (little to no exercise)</option>
+                                    <option value="light">Light (exercise 1-3 days/week)</option>
+                                    <option value="moderate">Moderate (exercise 3-5 days/week)</option>
+                                    <option value="active">Active (exercise 6-7 days/week)</option>
+                                    <option value="athlete">Athlete (intense training)</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Fitness Goals</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {['Weight Loss', 'Muscle Gain', 'Endurance', 'General Health', 'Performance', 'Recovery'].map(goal => (
+                                        <label key={goal} className="flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                className="mr-2"
+                                                checked={userProfile.fitnessGoals.includes(goal)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setUserProfile({...userProfile, fitnessGoals: [...userProfile.fitnessGoals, goal]});
+                                                    } else {
+                                                        setUserProfile({...userProfile, fitnessGoals: userProfile.fitnessGoals.filter(g => g !== goal)});
+                                                    }
+                                                }}
+                                            />
+                                            {goal}
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Medical Conditions</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {['None', 'Diabetes', 'Hypertension', 'Heart Disease', 'Asthma', 'Thyroid'].map(condition => (
+                                        <label key={condition} className="flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                className="mr-2"
+                                                checked={userProfile.medicalConditions.includes(condition)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setUserProfile({...userProfile, medicalConditions: [...userProfile.medicalConditions, condition]});
+                                                    } else {
+                                                        setUserProfile({...userProfile, medicalConditions: userProfile.medicalConditions.filter(c => c !== condition)});
+                                                    }
+                                                }}
+                                            />
+                                            {condition}
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {userProfile.bmi && (
+                                <div className="bg-blue-50 rounded-lg p-4">
+                                    <h3 className="font-semibold text-gray-800 mb-2">📊 Your Calculated Metrics:</h3>
+                                    <div className="grid grid-cols-3 gap-4 text-sm">
+                                        <div><span className="text-gray-600">BMI:</span> <span className="font-semibold ml-2">{userProfile.bmi}</span></div>
+                                        <div><span className="text-gray-600">BMR:</span> <span className="font-semibold ml-2">{userProfile.bmr} cal/day</span></div>
+                                        <div><span className="text-gray-600">Max HR:</span> <span className="font-semibold ml-2">{userProfile.maxHeartRate} bpm</span></div>
+                                    </div>
+                                </div>
+                            )}
+
+                            <button
+                                type="submit"
+                                className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold py-3 rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all"
+                            >
+                                Continue to Medical Information
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // MEDICAL REPORT UPLOAD SCREEN
+    if (currentStep === 'medical') {
+        return (
+            <div className="min-h-screen bg-gray-50 py-8">
+                <div className="max-w-2xl mx-auto px-4">
+                    <div className="bg-white rounded-2xl shadow-xl p-8">
+                        <h2 className="text-3xl font-bold text-gray-800 mb-6">Medical Information</h2>
+                        <p className="text-gray-600 mb-8">
+                            Upload your recent medical report for personalized nutrition recommendations. This is optional but helps us provide more accurate guidance.
+                        </p>
+
+                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6">
+                            <Upload className="text-5xl mx-auto mb-4" />
+                            <h3 className="text-lg font-semibold mb-2">Upload Medical Report</h3>
+                            <p className="text-sm text-gray-600 mb-4">PDF, JPG, or PNG (Max 10MB)</p>
+                            <input
+                                type="file"
+                                accept=".pdf,.jpg,.jpeg,.png"
+                                onChange={handleMedicalReportUpload}
+                                className="hidden"
+                                id="medical-upload"
+                            />
+                            <label
+                                htmlFor="medical-upload"
+                                className="inline-block bg-blue-500 text-white px-6 py-2 rounded-lg cursor-pointer hover:bg-blue-600"
+                            >
+                                Choose File
+                            </label>
+                        </div>
+
+                        {medicalReport && (
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                                <div className="flex items-center">
+                                    <CheckCircle2 className="text-2xl mr-3" />
+                                    <div>
+                                        <p className="font-semibold text-green-800">File Uploaded Successfully</p>
+                                        <p className="text-sm text-green-600">{medicalReport.name}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {reportAnalysis && (
+                            <div className="bg-blue-50 rounded-lg p-6 mb-6">
+                                <h3 className="font-semibold text-lg mb-4">Medical Report Analysis</h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="flex justify-between bg-white p-3 rounded">
+                                        <span>Glucose:</span>
+                                        <span className={`font-semibold ${reportAnalysis.glucose === 'normal' ? 'text-green-600' : 'text-yellow-600'}`}>
+                                            {reportAnalysis.glucose}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between bg-white p-3 rounded">
+                                        <span>Cholesterol:</span>
+                                        <span className={`font-semibold ${reportAnalysis.cholesterol === 'normal' ? 'text-green-600' : 'text-yellow-600'}`}>
+                                            {reportAnalysis.cholesterol}
+                                        </span>
+                                    </div>
+                                </div>
+                                {reportAnalysis.recommendations && (
+                                    <div className="mt-4">
+                                        <h4 className="font-semibold mb-2">Recommendations:</h4>
+                                        <ul className="list-disc list-inside space-y-1">
+                                            {reportAnalysis.recommendations.map((rec, i) => (
+                                                <li key={i} className="text-sm text-gray-700">{rec}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                            <div className="flex items-start">
+                                <Shield className="text-2xl mr-3 mt-1" />
+                                <div>
+                                    <h4 className="font-semibold mb-1">Your Privacy Matters</h4>
+                                    <p className="text-sm text-gray-600">
+                                        Your medical data is processed locally and never stored on our servers.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex space-x-4">
+                            <button
+                                onClick={() => setCurrentStep('profile')}
+                                className="flex-1 bg-gray-200 text-gray-800 font-semibold py-3 rounded-lg hover:bg-gray-300"
+                            >
+                                Back
+                            </button>
+                            <button
+                                onClick={() => setCurrentStep('dashboard')}
+                                className="flex-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold py-3 rounded-lg hover:from-blue-600 hover:to-purple-600"
+                            >
+                                {medicalReport ? 'Start BioSync' : 'Skip & Continue'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // MAIN DASHBOARD
+    return (
+        <div className="min-h-screen bg-gray-50">
+            <header className="bg-white shadow-sm border-b">
+                <div className="max-w-7xl mx-auto px-4 py-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                            <Brain className="text-3xl" />
+                            <div>
+                                <h1 className="text-2xl font-bold">BioSync</h1>
+                                <p className="text-sm text-gray-600">Welcome, {userProfile.name}</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center space-x-4">
+                            <select
+                                value={exerciseType}
+                                onChange={(e) => setExerciseType(e.target.value)}
+                                className="px-4 py-2 border rounded-lg"
+                                disabled={isExercising}
+                            >
+                                <option value="running">🏃 Running</option>
+                                <option value="cycling">🚴 Cycling</option>
+                                <option value="swimming">🏊 Swimming</option>
+                                <option value="strength">💪 Strength</option>
+                                <option value="yoga">🧘 Yoga</option>
+                            </select>
+                            <button
+                                onClick={toggleExercise}
+                                className={`px-6 py-2 rounded-lg font-semibold text-white transition-colors ${
+                                    isExercising 
+                                        ? 'bg-red-500 hover:bg-red-600' 
+                                        : 'bg-green-500 hover:bg-green-600'
+                                }`}
+                            >
+                                {isExercising ? '⏹️ Stop' : '▶️ Start'}
+                            </button>
+                            {isExercising && (
+                                <div className="font-mono text-lg font-semibold animate-pulse">
+                                    {formatDuration(exerciseDuration)}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            {/* User Stats Bar */}
+            <div className="bg-blue-50 border-b px-4 py-3">
+                <div className="max-w-7xl mx-auto flex items-center justify-between text-sm">
+                    <div className="flex items-center space-x-6">
+                        <span><strong>Age:</strong> {userProfile.age}</span>
+                        <span><strong>BMI:</strong> {userProfile.bmi}</span>
+                        <span><strong>Activity:</strong> {userProfile.activityLevel}</span>
+                        <span><strong>Max HR:</strong> {userProfile.maxHeartRate} bpm</span>
+                        {isExercising && (
+                            <span className="text-green-600 font-semibold animate-pulse">
+                                🟢 Exercise Active
+                            </span>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Dashboard */}
+            <main className="max-w-7xl mx-auto px-4 py-8">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Metrics */}
+                    <div className="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-red-50 rounded-xl p-4 transition-all hover:shadow-lg">
+                            <Heart className="text-2xl mb-2" />
+                            <div className="text-2xl font-bold">{biometrics.heartRate}</div>
+                            <div className="text-sm text-gray-600">Heart Rate</div>
+                            <div className={`text-xs mt-1 px-2 py-1 rounded-full inline-block ${getZoneColor(biometrics.heartRateZone)}`}>
+                                {biometrics.heartRateZone}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                                Target: {Math.round((userProfile.maxHeartRate || 190) * 0.7)}-{Math.round((userProfile.maxHeartRate || 190) * 0.85)}
+                            </div>
+                        </div>
+                        <div className="bg-blue-50 rounded-xl p-4 transition-all hover:shadow-lg">
+                            <Droplets className="text-2xl mb-2" />
+                            <div className="text-2xl font-bold">{Math.round(biometrics.hydrationLevel)}%</div>
+                            <div className="text-sm text-gray-600">Hydration</div>
+                            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                <div 
+                                    className="bg-blue-500 h-2 rounded-full transition-all duration-500"
+                                    style={{ width: `${biometrics.hydrationLevel}%` }}
+                                />
+                            </div>
+                            {biometrics.hydrationCooldown > 0 && (
+                                <div className="text-xs text-green-600 mt-1">Protected: {biometrics.hydrationCooldown}s</div>
+                            )}
+                        </div>
+                        <div className="bg-yellow-50 rounded-xl p-4 transition-all hover:shadow-lg">
+                            <Zap className="text-2xl mb-2" />
+                            <div className="text-2xl font-bold">{Math.round(biometrics.glycogenStores)}%</div>
+                            <div className="text-sm text-gray-600">Glycogen</div>
+                            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                <div 
+                                    className="bg-yellow-500 h-2 rounded-full transition-all duration-500"
+                                    style={{ width: `${biometrics.glycogenStores}%` }}
+                                />
+                            </div>
+                            {biometrics.energyCooldown > 0 && (
+                                <div className="text-xs text-green-600 mt-1">Protected: {biometrics.energyCooldown}s</div>
+                            )}
+                        </div>
+                        <div className="bg-orange-50 rounded-xl p-4 transition-all hover:shadow-lg">
+                            <Thermometer className="text-2xl mb-2" />
+                            <div className="text-2xl font-bold">{biometrics.coreTemp.toFixed(1)}°C</div>
+                            <div className="text-sm text-gray-600">Core Temp</div>
+                            <div className={`text-xs mt-1 ${biometrics.coreTemp > 38.0 ? 'text-red-600' : 'text-green-600'}`}>
+                                {biometrics.coreTemp > 38.0 ? '⚠️ Elevated' : '✓ Normal'}
+                            </div>
+                            {biometrics.tempCooldown > 0 && (
+                                <div className="text-xs text-blue-600 mt-1">Cooling: {biometrics.tempCooldown}s</div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* AI Recommendations */}
+                    <div className="bg-white rounded-xl shadow-lg p-6">
+                        <h3 className="text-lg font-semibold mb-4 flex items-center">
+                            <Brain className="mr-2" />
+                            AI Recommendations
+                        </h3>
+                        {recommendations.length > 0 ? (
+                            <div className="space-y-3 max-h-96 overflow-y-auto">
+                                {recommendations.map(rec => (
+                                    <div key={rec.id} className={`${rec.bgColor} rounded-lg p-3 transition-all hover:shadow-md ${rec.completed ? 'opacity-60' : ''}`}>
+                                        <div className="flex items-start space-x-3">
+                                            <rec.icon className="text-xl flex-shrink-0 mt-0.5" />
+                                            <div className="flex-1">
+                                                <h4 className={`font-semibold text-sm ${rec.completed ? 'line-through' : ''}`}>{rec.title}</h4>
+                                                <p className="text-xs text-gray-700">{rec.message}</p>
+                                                {rec.actionable && !rec.completed && (
+                                                    <button
+                                                        onClick={() => completeRecommendation(rec.id)}
+                                                        className="mt-2 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-all"
+                                                    >
+                                                        ✓ Done
+                                                    </button>
+                                                )}
+                                                {rec.completed && (
+                                                    <div className="mt-2 text-xs text-green-600 font-semibold">
+                                                        ✅ Completed
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-8">
+                                <Activity className="text-4xl mx-auto mb-2 text-gray-400" />
+                                <p className="text-gray-500">
+                                    {isExercising 
+                                        ? 'AI monitoring your performance...' 
+                                        : 'Start exercising to receive AI recommendations'}
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Medical-based recommendations */}
+                        {reportAnalysis && reportAnalysis.recommendations && (
+                            <div className="mt-4 pt-4 border-t">
+                                <h4 className="font-semibold text-sm mb-2">From your medical report:</h4>
+                                <ul className="text-xs text-gray-600 space-y-1">
+                                    {reportAnalysis.recommendations.map((rec, i) => (
+                                        <li key={i} className="flex items-start">
+                                            <span className="mr-2">•</span>
+                                            <span>{rec}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Performance Chart */}
+                    <div className="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">
+                        <h3 className="text-lg font-semibold mb-4 flex items-center">
+                            <BarChart3 className="mr-2" />
+                            Performance Tracking
+                        </h3>
+                        <SimpleChart data={historicalData} />
+                        {isExercising && historicalData.length > 0 && (
+                            <div className="mt-4 grid grid-cols-4 gap-4 text-center">
+                                <div>
+                                    <p className="text-sm text-gray-600">Avg Heart Rate</p>
+                                    <p className="text-lg font-semibold text-red-600">
+                                        {Math.round(historicalData.reduce((sum, d) => sum + d.heartRate, 0) / historicalData.length)}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-600">Calories Burned</p>
+                                    <p className="text-lg font-semibold text-orange-600">
+                                        {Math.round(exerciseDuration * 0.1 * (parseFloat(userProfile.weight) || 70) / 60)}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-600">Avg Hydration</p>
+                                    <p className="text-lg font-semibold text-blue-600">
+                                        {Math.round(historicalData.reduce((sum, d) => sum + d.hydration, 0) / historicalData.length)}%
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-600">Duration</p>
+                                    <p className="text-lg font-semibold text-purple-600">
+                                        {Math.floor(exerciseDuration / 60)}:{(exerciseDuration % 60).toString().padStart(2, '0')}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Personal Stats */}
+                    <div className="bg-white rounded-xl shadow-lg p-6">
+                        <h3 className="text-lg font-semibold mb-4 flex items-center">
+                            <User className="mr-2" />
+                            Your Personal Stats
+                        </h3>
+                        <div className="space-y-3">
+                            <div className="flex justify-between p-2 hover:bg-gray-50 rounded">
+                                <span className="text-gray-600">Daily Calories:</span>
+                                <span className="font-semibold">
+                                    {Math.round((userProfile.bmr || 1680) * 1.5)} cal
+                                </span>
+                            </div>
+                            <div className="flex justify-between p-2 hover:bg-gray-50 rounded">
+                                <span className="text-gray-600">Water Needs:</span>
+                                <span className="font-semibold">
+                                    {Math.round((parseFloat(userProfile.weight) || 70) * 35)} ml/day
+                                </span>
+                            </div>
+                            <div className="flex justify-between p-2 hover:bg-gray-50 rounded">
+                                <span className="text-gray-600">Fitness Goals:</span>
+                                <span className="font-semibold text-sm">
+                                    {userProfile.fitnessGoals.slice(0, 2).join(', ') || 'General Health'}
+                                </span>
+                            </div>
+                            <div className="flex justify-between p-2 hover:bg-gray-50 rounded">
+                                <span className="text-gray-600">Exercise Status:</span>
+                                <span className={`font-semibold ${isExercising ? 'text-green-600' : 'text-gray-600'}`}>
+                                    {isExercising ? '🏃 Active' : '⏸️ Resting'}
+                                </span>
+                            </div>
+                            {userProfile.medicalConditions.length > 0 && userProfile.medicalConditions[0] !== 'None' && (
+                                <div className="flex justify-between p-2 bg-yellow-50 rounded">
+                                    <span className="text-gray-600">Conditions:</span>
+                                    <span className="font-semibold text-sm text-red-600">
+                                        {userProfile.medicalConditions.join(', ')}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    );
+};
+
+// Add CSS for animations
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes grow {
+        from { height: 0; }
+        to { height: auto; }
+    }
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+`;
+document.head.appendChild(style);
+
+// Render the app
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<BioSyncAdvanced />);
