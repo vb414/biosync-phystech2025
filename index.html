@@ -49,19 +49,27 @@
         let isExercising = false;
         let exerciseDuration = 0;
         let exerciseInterval = null;
+        
+        // Enhanced biometrics with cooldown tracking
         let biometrics = {
             heartRate: 72,
             heartRateZone: 'rest',
             hydrationLevel: 100,
             glycogenStores: 100,
             coreTemp: 37.0,
-            recentlyHydrated: false,
-            recentlyEnergized: false
+            hydrationCooldown: 0,
+            energyCooldown: 0,
+            tempCooldown: 0,
+            lastHydrationAlert: 0,
+            lastEnergyAlert: 0,
+            lastTempAlert: 0
         };
+        
         let recommendations = [];
         let historicalData = [];
         let medicalReport = null;
         let reportAnalysis = null;
+        let completedRecommendations = {}; // Track completed recommendations by timestamp
 
         // Helper functions
         function calculateBMI() {
@@ -84,7 +92,7 @@
             }
         }
         
-        // Enhanced updateBiometrics with recent action tracking
+        // Enhanced updateBiometrics with cooldown system
         function updateBiometrics() {
             const intensity = { running: 2.0, cycling: 1.5, swimming: 1.8, strength: 1.2, yoga: 0.8 };
             const exerciseType = document.getElementById('exerciseType') ? document.getElementById('exerciseType').value : 'running';
@@ -104,20 +112,36 @@
             else if (hrPercent > 0) biometrics.heartRateZone = 'warm-up';
             else biometrics.heartRateZone = 'rest';
             
-            // Only decrease if not recently replenished
-            if (!biometrics.recentlyHydrated) {
-                biometrics.hydrationLevel = Math.max(biometrics.hydrationLevel - 0.3, 0);
-            } else {
-                biometrics.recentlyHydrated = false;
+            // Decrease cooldowns
+            if (biometrics.hydrationCooldown > 0) {
+                biometrics.hydrationCooldown--;
+            }
+            if (biometrics.energyCooldown > 0) {
+                biometrics.energyCooldown--;
+            }
+            if (biometrics.tempCooldown > 0) {
+                biometrics.tempCooldown--;
             }
             
-            if (!biometrics.recentlyEnergized) {
-                biometrics.glycogenStores = Math.max(biometrics.glycogenStores - 0.2, 0);
-            } else {
-                biometrics.recentlyEnergized = false;
+            // Only decrease hydration if cooldown is over
+            if (biometrics.hydrationCooldown === 0) {
+                const sweatRate = 0.3 * (hrPercent / 100) * (multiplier / 2);
+                biometrics.hydrationLevel = Math.max(biometrics.hydrationLevel - sweatRate, 0);
             }
             
-            biometrics.coreTemp = Math.min(biometrics.coreTemp + 0.01, 39.0);
+            // Only decrease energy if cooldown is over
+            if (biometrics.energyCooldown === 0) {
+                const energyBurn = 0.2 * (hrPercent / 100) * (multiplier / 2);
+                biometrics.glycogenStores = Math.max(biometrics.glycogenStores - energyBurn, 0);
+            }
+            
+            // Temperature always increases unless in cooldown
+            if (biometrics.tempCooldown === 0) {
+                biometrics.coreTemp = Math.min(biometrics.coreTemp + 0.01, 39.5);
+            } else {
+                // Cool down faster when in cooldown
+                biometrics.coreTemp = Math.max(biometrics.coreTemp - 0.02, 37.0);
+            }
             
             // Update historical data
             historicalData.push({
@@ -131,15 +155,12 @@
             updateRecommendations();
         }
         
-        // Enhanced updateRecommendations with actionable items
+        // Enhanced updateRecommendations with repeated alerts
         function updateRecommendations() {
-            // Keep existing completed recommendations
-            const completedRecs = recommendations.filter(r => r.completed);
             recommendations = [];
-            
             const exerciseType = document.getElementById('exerciseType') ? document.getElementById('exerciseType').value : 'running';
             
-            // 1. PERSONALIZED STATUS
+            // Always show status
             recommendations.push({
                 id: 'status',
                 title: `${userProfile.name}'s AI Analysis`,
@@ -148,8 +169,8 @@
                 actionable: false
             });
 
-            // 2. ACTIONABLE HYDRATION
-            if (biometrics.hydrationLevel < 90 && !completedRecs.find(r => r.id === 'hydration')) {
+            // HYDRATION - Show again after 60 seconds if still low
+            if (biometrics.hydrationLevel < 90 && (exerciseDuration - biometrics.lastHydrationAlert) > 60) {
                 const bodyWeight = parseFloat(userProfile.weight) || 70;
                 const waterNeeded = Math.round((100 - biometrics.hydrationLevel) * bodyWeight * 0.015);
                 const exerciseMultiplier = {
@@ -158,11 +179,11 @@
                 const adjustedWater = Math.round(waterNeeded * exerciseMultiplier);
                 
                 let urgency = '';
-                if (biometrics.hydrationLevel < 70) urgency = ' URGENT:';
-                else if (biometrics.hydrationLevel < 80) urgency = ' Important:';
+                if (biometrics.hydrationLevel < 70) urgency = 'URGENT:';
+                else if (biometrics.hydrationLevel < 80) urgency = 'Important:';
                 
                 recommendations.push({
-                    id: 'hydration',
+                    id: `hydration_${exerciseDuration}`,
                     type: 'hydration',
                     title: `${urgency} Hydration Alert`,
                     message: `${userProfile.name}, drink ${adjustedWater}ml water now. As a ${userProfile.activityLevel} athlete (${bodyWeight}kg), your body needs extra hydration during ${exerciseType}.`,
@@ -170,9 +191,45 @@
                     actionable: true,
                     value: adjustedWater
                 });
+                biometrics.lastHydrationAlert = exerciseDuration;
             }
 
-            // 3. HEART RATE RECOMMENDATIONS
+            // ENERGY - Show again after 90 seconds if still low
+            if (biometrics.glycogenStores < 70 && (exerciseDuration - biometrics.lastEnergyAlert) > 90) {
+                const baseCarbs = userProfile.gender === 'female' ? 25 : 30;
+                const intensityMultiplier = {
+                    running: 1.2, cycling: 1.0, swimming: 1.1, strength: 0.8, yoga: 0.5
+                }[exerciseType];
+                const recommendedCarbs = Math.round(baseCarbs * intensityMultiplier);
+                
+                recommendations.push({
+                    id: `energy_${exerciseDuration}`,
+                    type: 'energy',
+                    title: `Energy Management for ${userProfile.gender.charAt(0).toUpperCase() + userProfile.gender.slice(1)} Athletes`,
+                    message: `${userProfile.name}, consume ${recommendedCarbs}g quick carbs (banana, sports drink). ${userProfile.gender === 'female' ? 'Women' : 'Men'} typically need this amount during ${exerciseType} sessions lasting ${Math.floor(exerciseDuration/60)}+ minutes.`,
+                    bgColor: 'bg-yellow-50',
+                    actionable: true,
+                    value: recommendedCarbs
+                });
+                biometrics.lastEnergyAlert = exerciseDuration;
+            }
+
+            // TEMPERATURE - Show again after 120 seconds if still high
+            if (biometrics.coreTemp > 37.8 && (exerciseDuration - biometrics.lastTempAlert) > 120) {
+                const ageWarning = userProfile.age > 50 ? ' Especially important at your age.' : '';
+                recommendations.push({
+                    id: `temp_${exerciseDuration}`,
+                    type: 'cooling',
+                    title: `Temperature Safety Alert`,
+                    message: `${userProfile.name}, core temp elevated to ${biometrics.coreTemp.toFixed(1)}°C. Take a 2-minute cool-down break.${ageWarning}`,
+                    bgColor: 'bg-red-50',
+                    actionable: true,
+                    value: 2
+                });
+                biometrics.lastTempAlert = exerciseDuration;
+            }
+
+            // Heart rate recommendations (non-actionable)
             if (biometrics.heartRateZone === 'peak') {
                 const ageGroup = userProfile.age < 25 ? 'young athlete' : userProfile.age > 50 ? 'experienced athlete' : 'athlete';
                 recommendations.push({
@@ -182,65 +239,17 @@
                     bgColor: 'bg-red-50',
                     actionable: false
                 });
-            } else if (biometrics.heartRateZone === 'cardio') {
-                recommendations.push({
-                    id: 'hr-cardio',
-                    title: 'Perfect Cardio Zone Achievement',
-                    message: `Excellent! Your ${biometrics.heartRate} bpm is ideal for your age (${userProfile.age}). This zone maximizes fat burn and cardiovascular benefits for ${exerciseType}.`,
-                    bgColor: 'bg-green-50',
-                    actionable: false
-                });
             }
 
-            // 4. ACTIONABLE ENERGY
-            if (biometrics.glycogenStores < 70 && !completedRecs.find(r => r.id === 'energy')) {
-                const baseCarbs = userProfile.gender === 'female' ? 25 : 30;
-                const intensityMultiplier = {
-                    running: 1.2, cycling: 1.0, swimming: 1.1, strength: 0.8, yoga: 0.5
-                }[exerciseType];
-                const recommendedCarbs = Math.round(baseCarbs * intensityMultiplier);
-                
-                recommendations.push({
-                    id: 'energy',
-                    type: 'energy',
-                    title: `Energy Management for ${userProfile.gender.charAt(0).toUpperCase() + userProfile.gender.slice(1)} Athletes`,
-                    message: `${userProfile.name}, consume ${recommendedCarbs}g quick carbs (banana, sports drink). ${userProfile.gender === 'female' ? 'Women' : 'Men'} typically need this amount during ${exerciseType} sessions lasting ${Math.floor(exerciseDuration/60)}+ minutes.`,
-                    bgColor: 'bg-yellow-50',
-                    actionable: true,
-                    value: recommendedCarbs
-                });
-            }
-
-            // 5. ACTIONABLE TEMPERATURE
-            if (biometrics.coreTemp > 37.8 && !completedRecs.find(r => r.id === 'temp')) {
-                const ageWarning = userProfile.age > 50 ? ' Especially important at your age.' : '';
-                recommendations.push({
-                    id: 'temp',
-                    type: 'cooling',
-                    title: `Temperature Safety Alert`,
-                    message: `${userProfile.name}, core temp elevated to ${biometrics.coreTemp.toFixed(1)}°C. Take a 2-minute cool-down break.${ageWarning}`,
-                    bgColor: 'bg-red-50',
-                    actionable: true,
-                    value: 2
-                });
-            }
-
-            // Add time-based motivational coaching
-            if (exerciseDuration === 300) { // 5 minutes
-                recommendations.push({
-                    id: 'milestone-5',
-                    title: `5-Minute Milestone! 🎉`,
-                    message: `${userProfile.name}, you've hit 5 minutes! Your ${userProfile.activityLevel} fitness level is showing. Keep this ${exerciseType} pace for maximum benefit.`,
-                    bgColor: 'bg-green-50',
-                    actionable: false
-                });
-            }
-
-            // Add back completed recommendations
-            recommendations = [...recommendations, ...completedRecs];
+            // Add completed recommendations back
+            Object.keys(completedRecommendations).forEach(key => {
+                if (completedRecommendations[key]) {
+                    recommendations.push(completedRecommendations[key]);
+                }
+            });
         }
 
-        // New notification function
+        // Enhanced notification function
         function showNotification(message) {
             const notification = document.createElement('div');
             notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 notification';
@@ -257,38 +266,40 @@
             }, 3000);
         }
 
-        // New complete recommendation function
+        // Enhanced complete recommendation function
         function completeRecommendation(recId) {
             const rec = recommendations.find(r => r.id === recId);
-            if (!rec || !rec.actionable || rec.completed) return;
+            if (!rec || !rec.actionable) return;
             
-            // Mark as completed
-            recommendations = recommendations.map(r => 
-                r.id === recId ? {...r, completed: true} : r
-            );
+            // Mark as completed and store it
+            rec.completed = true;
+            completedRecommendations[recId] = rec;
             
-            // Apply the effect
             switch(rec.type) {
                 case 'hydration':
-                    biometrics.hydrationLevel = Math.min(100, biometrics.hydrationLevel + 15);
-                    biometrics.recentlyHydrated = true;
-                    showNotification('💧 Hydration restored! Great job staying hydrated.');
+                    // Increase hydration and set cooldown
+                    biometrics.hydrationLevel = Math.min(100, biometrics.hydrationLevel + 20);
+                    biometrics.hydrationCooldown = 45; // 45 seconds of no decrease
+                    showNotification('💧 Hydration restored! You\'ll maintain this level for a while.');
                     break;
                     
                 case 'energy':
-                    biometrics.glycogenStores = Math.min(100, biometrics.glycogenStores + 20);
-                    biometrics.recentlyEnergized = true;
-                    showNotification('⚡ Energy boosted! You\'re refueled and ready to go.');
+                    // Increase energy and set cooldown
+                    biometrics.glycogenStores = Math.min(100, biometrics.glycogenStores + 25);
+                    biometrics.energyCooldown = 60; // 60 seconds of no decrease
+                    showNotification('⚡ Energy boosted! Your glycogen stores are replenished.');
                     break;
                     
                 case 'cooling':
-                    biometrics.coreTemp = Math.max(37.0, biometrics.coreTemp - 0.5);
+                    // Cool down temperature
+                    biometrics.coreTemp = Math.max(37.0, biometrics.coreTemp - 0.3);
                     biometrics.heartRate = Math.max(72, biometrics.heartRate - 10);
-                    showNotification('🌡️ Temperature normalized! Good recovery.');
+                    biometrics.tempCooldown = 30; // 30 seconds of cooling
+                    showNotification('🌡️ Cooling down! Your body temperature is normalizing.');
                     break;
             }
             
-            renderDashboard();
+            updateDynamicElements();
         }
 
         // Screen rendering functions
@@ -441,7 +452,7 @@
                 });
             }, 100);
         }
-        
+
         function updateProfileCalculations() {
             const name = document.getElementById('userName')?.value;
             const age = document.getElementById('userAge')?.value;
@@ -569,7 +580,6 @@
                                 </div>
                             </div>
 
-                            <div class="bg-gray-50 rounded-xl p-4
                             <div class="bg-gray-50 rounded-xl p-4 mb-6">
                                 <div class="flex items-start">
                                     <span style="font-size: 2rem; margin-right: 0.75rem;">🛡️</span>
@@ -630,385 +640,416 @@
         }
         
         function renderDashboard() {
-    document.getElementById('root').innerHTML = `
-        <div class="min-h-screen bg-gray-50">
-            <!-- Header -->
-            <header class="bg-white shadow-sm border-b">
-                <div class="max-w-7xl mx-auto px-4 py-4">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center space-x-3">
-                            <span style="font-size: 2rem;">🧠</span>
-                            <div>
-                                <h1 class="text-2xl font-bold">BioSync</h1>
-                                <p class="text-sm text-gray-600">Welcome back, ${userProfile.name}!</p>
+            document.getElementById('root').innerHTML = `
+                <div class="min-h-screen bg-gray-50">
+                    <!-- Header -->
+                    <header class="bg-white shadow-sm border-b">
+                        <div class="max-w-7xl mx-auto px-4 py-4">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-3">
+                                    <span style="font-size: 2rem;">🧠</span>
+                                    <div>
+                                        <h1 class="text-2xl font-bold">BioSync</h1>
+                                        <p class="text-sm text-gray-600">Welcome back, ${userProfile.name}!</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-4">
+                                    <select id="exerciseType" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" ${isExercising ? 'disabled' : ''}>
+                                        <option value="running">🏃 Running</option>
+                                        <option value="cycling">🚴 Cycling</option>
+                                        <option value="swimming">🏊 Swimming</option>
+                                        <option value="strength">💪 Strength</option>
+                                        <option value="yoga">🧘 Yoga</option>
+                                    </select>
+                                    <button onclick="toggleExercise()" class="px-6 py-2 rounded-lg font-semibold text-white transition-all ${isExercising ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}">
+                                        ${isExercising ? '⏹️ Stop' : '▶️ Start'}
+                                    </button>
+                                    ${isExercising ? `<div class="font-mono text-lg font-bold text-blue-600 animate-pulse">${Math.floor(exerciseDuration / 60)}:${(exerciseDuration % 60).toString().padStart(2, '0')}</div>` : ''}
+                                </div>
                             </div>
                         </div>
-                        <div class="flex items-center space-x-4">
-                            <select id="exerciseType" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" ${isExercising ? 'disabled' : ''}>
-                                <option value="running">🏃 Running</option>
-                                <option value="cycling">🚴 Cycling</option>
-                                <option value="swimming">🏊 Swimming</option>
-                                <option value="strength">💪 Strength</option>
-                                <option value="yoga">🧘 Yoga</option>
-                            </select>
-                            <button onclick="toggleExercise()" class="px-6 py-2 rounded-lg font-semibold text-white transition-all ${isExercising ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}">
-                                ${isExercising ? '⏹️ Stop' : '▶️ Start'}
-                            </button>
-                            ${isExercising ? `<div class="font-mono text-lg font-bold text-blue-600 animate-pulse">${Math.floor(exerciseDuration / 60)}:${(exerciseDuration % 60).toString().padStart(2, '0')}</div>` : ''}
+                    </header>
+
+                    <!-- User Info Bar -->
+                    <div class="bg-blue-50 border-b px-4 py-3">
+                        <div class="max-w-7xl mx-auto flex items-center justify-between text-sm">
+                            <div class="flex items-center space-x-6">
+                                <span>👤 <strong>Age:</strong> ${userProfile.age}</span>
+                                <span>📏 <strong>BMI:</strong> ${userProfile.bmi}</span>
+                                <span>🏃 <strong>Level:</strong> ${userProfile.activityLevel}</span>
+                                <span>❤️ <strong>Max HR:</strong> ${userProfile.maxHeartRate} bpm</span>
+                                ${isExercising ? '<span class="text-green-600 font-bold animate-pulse">🟢 EXERCISE ACTIVE</span>' : ''}
+                            </div>
                         </div>
                     </div>
+
+                    <!-- Main Dashboard -->
+                    <main class="max-w-7xl mx-auto px-4 py-8">
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <!-- Biometric Cards -->
+                            <div class="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <!-- Heart Rate Card -->
+                                <div class="bg-red-50 rounded-xl p-4 hover:shadow-lg transition-all">
+                                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">❤️</div>
+                                    <div class="text-2xl font-bold" id="heartRateDisplay">${biometrics.heartRate}</div>
+                                    <div class="text-sm text-gray-600">Heart Rate</div>
+                                    <div class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full mt-2 inline-block" id="heartRateZone">
+                                        ${biometrics.heartRateZone}
+                                    </div>
+                                </div>
+                                
+                                <!-- Hydration Card -->
+                                <div class="bg-blue-50 rounded-xl p-4 hover:shadow-lg transition-all">
+                                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">💧</div>
+                                    <div class="text-2xl font-bold" id="hydrationDisplay">${Math.round(biometrics.hydrationLevel)}%</div>
+                                    <div class="text-sm text-gray-600">Hydration</div>
+                                    <div class="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                        <div id="hydrationBar" class="bg-blue-500 h-2 rounded-full transition-all duration-500" style="width: ${biometrics.hydrationLevel}%"></div>
+                                    </div>
+                                    ${biometrics.hydrationCooldown > 0 ? `<div class="text-xs text-green-600 mt-1">Protected: ${biometrics.hydrationCooldown}s</div>` : ''}
+                                </div>
+                                
+                                <!-- Energy Card -->
+                                <div class="bg-yellow-50 rounded-xl p-4 hover:shadow-lg transition-all">
+                                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">⚡</div>
+                                    <div class="text-2xl font-bold" id="energyDisplay">${Math.round(biometrics.glycogenStores)}%</div>
+                                    <div class="text-sm text-gray-600">Energy</div>
+                                    <div class="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                        <div id="energyBar" class="bg-yellow-500 h-2 rounded-full transition-all duration-500" style="width: ${biometrics.glycogenStores}%"></div>
+                                    </div>
+                                    ${biometrics.energyCooldown > 0 ? `<div class="text-xs text-green-600 mt-1">Protected: ${biometrics.energyCooldown}s</div>` : ''}
+                                </div>
+                                
+                                <!-- Temperature Card -->
+                                <div class="bg-orange-50 rounded-xl p-4 hover:shadow-lg transition-all">
+                                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🌡️</div>
+                                    <div class="text-2xl font-bold" id="tempDisplay">${biometrics.coreTemp.toFixed(1)}°C</div>
+                                    <div class="text-sm text-gray-600">Core Temp</div>
+                                    <div class="text-xs mt-2 px-2 py-1 rounded-full inline-block ${biometrics.coreTemp > 38.0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}" id="tempStatus">
+                                        ${biometrics.coreTemp > 38.0 ? '⚠️ High' : '✅ Normal'}
+                                    </div>
+                                    ${biometrics.tempCooldown > 0 ? `<div class="text-xs text-blue-600 mt-1">Cooling: ${biometrics.tempCooldown}s</div>` : ''}
+                                </div>
+                            </div>
+
+                            <!-- AI Recommendations -->
+                            <div class="bg-white rounded-xl shadow-lg p-6">
+                                <h3 class="text-lg font-semibold mb-4 flex items-center">
+                                    🧠 AI Recommendations
+                                </h3>
+                                <div id="recommendationsContainer" class="space-y-3 max-h-96 overflow-y-auto">
+                                    <!-- Recommendations will be updated dynamically -->
+                                </div>
+                            </div>
+
+                            <!-- Performance Chart -->
+                            <div class="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">
+                                <h3 class="text-lg font-semibold mb-4">📊 Real-Time Performance</h3>
+                                <div class="h-64 bg-gray-50 rounded-lg p-4">
+                                    <svg id="performanceChart" width="100%" height="100%" viewBox="0 0 600 240" preserveAspectRatio="none">
+                                        <!-- Chart will be drawn here -->
+                                    </svg>
+                                </div>
+                                
+                                <div id="statsContainer" class="mt-4">
+                                    <!-- Stats will be updated dynamically -->
+                                </div>
+                            </div>
+
+                            <!-- Personal Stats -->
+                            <div class="bg-white rounded-xl shadow-lg p-6">
+                                <h3 class="text-lg font-semibold mb-4 flex items-center">
+                                    👤 Your Personal Stats
+                                </h3>
+                                <div class="space-y-4">
+                                    <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                                        <span class="text-gray-600">🔥 Daily Calories:</span>
+                                        <span class="font-bold text-orange-600">${Math.round((userProfile.bmr || 1680) * 1.5)} cal</span>
+                                    </div>
+                                    <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                                        <span class="text-gray-600">💧 Water Needs:</span>
+                                        <span class="font-bold text-blue-600">${Math.round((parseFloat(userProfile.weight) || 70) * 35)} ml/day</span>
+                                    </div>
+                                    <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                                        <span class="text-gray-600">🎯 Goals:</span>
+                                        <span class="font-bold text-purple-600 text-sm">${userProfile.fitnessGoals.slice(0, 2).join(', ') || 'General Health'}</span>
+                                    </div>
+                                    <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                                        <span class="text-gray-600">📈 Status:</span>
+                                        <span class="font-bold ${isExercising ? 'text-green-600' : 'text-gray-600'}" id="exerciseStatus">${isExercising ? '🏃 Exercising' : '😌 Resting'}</span>
+                                    </div>
+                                    ${userProfile.medicalConditions.length > 0 && userProfile.medicalConditions[0] !== 'None' ? `
+                                        <div class="p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
+                                            <span class="text-sm font-medium text-yellow-800">⚠️ Medical Conditions:</span>
+                                            <p class="text-sm text-yellow-700 mt-1">
+                                                ${userProfile.medicalConditions.filter(c => c !== 'None').join(', ')}
+                                            </p>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </main>
                 </div>
-            </header>
-
-            <!-- User Info Bar -->
-            <div class="bg-blue-50 border-b px-4 py-3">
-                <div class="max-w-7xl mx-auto flex items-center justify-between text-sm">
-                    <div class="flex items-center space-x-6">
-                        <span>👤 <strong>Age:</strong> ${userProfile.age}</span>
-                        <span>📏 <strong>BMI:</strong> ${userProfile.bmi}</span>
-                        <span>🏃 <strong>Level:</strong> ${userProfile.activityLevel}</span>
-                        <span>❤️ <strong>Max HR:</strong> ${userProfile.maxHeartRate} bpm</span>
-                        ${isExercising ? '<span class="text-green-600 font-bold animate-pulse">🟢 EXERCISE ACTIVE</span>' : ''}
-                    </div>
-                </div>
-            </div>
-
-            <!-- Main Dashboard -->
-            <main class="max-w-7xl mx-auto px-4 py-8">
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <!-- Biometric Cards -->
-                    <div class="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <!-- Heart Rate Card -->
-                        <div class="bg-red-50 rounded-xl p-4 hover:shadow-lg transition-all">
-                            <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">❤️</div>
-                            <div class="text-2xl font-bold" id="heartRateDisplay">${biometrics.heartRate}</div>
-                            <div class="text-sm text-gray-600">Heart Rate</div>
-                            <div class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full mt-2 inline-block" id="heartRateZone">
-                                ${biometrics.heartRateZone}
-                            </div>
-                        </div>
-                        
-                        <!-- Hydration Card -->
-                        <div class="bg-blue-50 rounded-xl p-4 hover:shadow-lg transition-all">
-                            <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">💧</div>
-                            <div class="text-2xl font-bold" id="hydrationDisplay">${Math.round(biometrics.hydrationLevel)}%</div>
-                            <div class="text-sm text-gray-600">Hydration</div>
-                            <div class="w-full bg-gray-200 rounded-full h-2 mt-2">
-                                <div id="hydrationBar" class="bg-blue-500 h-2 rounded-full transition-all duration-500" style="width: ${biometrics.hydrationLevel}%"></div>
-                            </div>
-                        </div>
-                        
-                        <!-- Energy Card -->
-                        <div class="bg-yellow-50 rounded-xl p-4 hover:shadow-lg transition-all">
-                            <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">⚡</div>
-                            <div class="text-2xl font-bold" id="energyDisplay">${Math.round(biometrics.glycogenStores)}%</div>
-                            <div class="text-sm text-gray-600">Energy</div>
-                            <div class="w-full bg-gray-200 rounded-full h-2 mt-2">
-                                <div id="energyBar" class="bg-yellow-500 h-2 rounded-full transition-all duration-500" style="width: ${biometrics.glycogenStores}%"></div>
-                            </div>
-                        </div>
-                        
-                        <!-- Temperature Card -->
-                        <div class="bg-orange-50 rounded-xl p-4 hover:shadow-lg transition-all">
-                            <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🌡️</div>
-                            <div class="text-2xl font-bold" id="tempDisplay">${biometrics.coreTemp.toFixed(1)}°C</div>
-                            <div class="text-sm text-gray-600">Core Temp</div>
-                            <div class="text-xs mt-2 px-2 py-1 rounded-full inline-block ${biometrics.coreTemp > 38.0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}" id="tempStatus">
-                                ${biometrics.coreTemp > 38.0 ? '⚠️ High' : '✅ Normal'}
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- AI Recommendations -->
-                    <div class="bg-white rounded-xl shadow-lg p-6">
-                        <h3 class="text-lg font-semibold mb-4 flex items-center">
-                            🧠 AI Recommendations
-                        </h3>
-                        <div id="recommendationsContainer" class="space-y-3 max-h-96 overflow-y-auto">
-                            <!-- Recommendations will be updated dynamically -->
-                        </div>
-                    </div>
-
-                    <!-- Performance Chart -->
-                    <div class="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">
-                        <h3 class="text-lg font-semibold mb-4">📊 Real-Time Performance</h3>
-                        <div class="h-64 bg-gray-50 rounded-lg p-4">
-                            <svg id="performanceChart" width="100%" height="100%" viewBox="0 0 600 240" preserveAspectRatio="none">
-                                <!-- Chart will be drawn here -->
-                            </svg>
-                        </div>
-                        
-                        <div id="statsContainer" class="mt-4">
-                            <!-- Stats will be updated dynamically -->
-                        </div>
-                    </div>
-
-                    <!-- Personal Stats -->
-                    <div class="bg-white rounded-xl shadow-lg p-6">
-                        <h3 class="text-lg font-semibold mb-4 flex items-center">
-                            👤 Your Personal Stats
-                        </h3>
-                        <div class="space-y-4">
-                            <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                                <span class="text-gray-600">🔥 Daily Calories:</span>
-                                <span class="font-bold text-orange-600">${Math.round((userProfile.bmr || 1680) * 1.5)} cal</span>
-                            </div>
-                            <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                                <span class="text-gray-600">💧 Water Needs:</span>
-                                <span class="font-bold text-blue-600">${Math.round((parseFloat(userProfile.weight) || 70) * 35)} ml/day</span>
-                            </div>
-                            <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                                <span class="text-gray-600">🎯 Goals:</span>
-                                <span class="font-bold text-purple-600 text-sm">${userProfile.fitnessGoals.slice(0, 2).join(', ') || 'General Health'}</span>
-                            </div>
-                            <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                                <span class="text-gray-600">📈 Status:</span>
-                                <span class="font-bold ${isExercising ? 'text-green-600' : 'text-gray-600'}" id="exerciseStatus">${isExercising ? '🏃 Exercising' : '😌 Resting'}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </main>
-        </div>
-    `;
-    
-    // Initial update of dynamic elements
-    updateDynamicElements();
-}
-
-// New function to update only the dynamic parts
-function updateDynamicElements() {
-    // Update biometric displays
-    const heartRateEl = document.getElementById('heartRateDisplay');
-    if (heartRateEl) heartRateEl.textContent = biometrics.heartRate;
-    
-    const heartRateZoneEl = document.getElementById('heartRateZone');
-    if (heartRateZoneEl) heartRateZoneEl.textContent = biometrics.heartRateZone;
-    
-    const hydrationEl = document.getElementById('hydrationDisplay');
-    if (hydrationEl) hydrationEl.textContent = Math.round(biometrics.hydrationLevel) + '%';
-    
-    const hydrationBar = document.getElementById('hydrationBar');
-    if (hydrationBar) hydrationBar.style.width = biometrics.hydrationLevel + '%';
-    
-    const energyEl = document.getElementById('energyDisplay');
-    if (energyEl) energyEl.textContent = Math.round(biometrics.glycogenStores) + '%';
-    
-    const energyBar = document.getElementById('energyBar');
-    if (energyBar) energyBar.style.width = biometrics.glycogenStores + '%';
-    
-    const tempEl = document.getElementById('tempDisplay');
-    if (tempEl) tempEl.textContent = biometrics.coreTemp.toFixed(1) + '°C';
-    
-    const tempStatus = document.getElementById('tempStatus');
-    if (tempStatus) {
-        tempStatus.textContent = biometrics.coreTemp > 38.0 ? '⚠️ High' : '✅ Normal';
-        tempStatus.className = `text-xs mt-2 px-2 py-1 rounded-full inline-block ${biometrics.coreTemp > 38.0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`;
-    }
-    
-    // Update recommendations
-    updateRecommendationsDisplay();
-    
-    // Update performance chart
-    updatePerformanceChart();
-    
-    // Update stats
-    updateStatsDisplay();
-}
-
-// Function to update recommendations display
-function updateRecommendationsDisplay() {
-    const container = document.getElementById('recommendationsContainer');
-    if (!container) return;
-    
-    if (recommendations.length > 0) {
-        container.innerHTML = recommendations.map((rec) => `
-            <div class="${rec.bgColor} rounded-lg p-3 border-l-4 border-blue-500 ${rec.completed ? 'opacity-50' : ''}">
-                <h4 class="font-semibold text-sm ${rec.completed ? 'line-through' : ''}">${rec.title}</h4>
-                <p class="text-xs text-gray-700 mt-1">${rec.message}</p>
-                ${rec.actionable && !rec.completed ? `
-                    <button onclick="completeRecommendation('${rec.id}')" class="mt-2 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-all">
-                        ✓ Done
-                    </button>
-                ` : ''}
-                ${rec.completed ? '<span class="text-xs text-green-600 mt-2 inline-block">✅ Completed</span>' : ''}
-            </div>
-        `).join('');
-    } else {
-        container.innerHTML = `
-            <div class="text-center py-8">
-                <div style="font-size: 2rem; margin-bottom: 0.5rem;">📊</div>
-                <p class="text-gray-500">${isExercising ? 'AI analyzing your performance...' : 'Start exercising to receive AI recommendations!'}</p>
-            </div>
-        `;
-    }
-}
-
-// Function to update performance chart using SVG
-function updatePerformanceChart() {
-    const svg = document.getElementById('performanceChart');
-    if (!svg || historicalData.length === 0) return;
-    
-    const width = 600;
-    const height = 240;
-    const padding = 20;
-    const chartWidth = width - (padding * 2);
-    const chartHeight = height - (padding * 2);
-    
-    // Clear existing chart
-    svg.innerHTML = '';
-    
-    // Create gradient definition
-    svg.innerHTML += `
-        <defs>
-            <linearGradient id="heartRateGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" style="stop-color:#ef4444;stop-opacity:0.8" />
-                <stop offset="100%" style="stop-color:#dc2626;stop-opacity:0.8" />
-            </linearGradient>
-        </defs>
-    `;
-    
-    // Calculate scale
-    const maxHR = Math.max(...historicalData.map(d => d.heartRate), 200);
-    const minHR = Math.min(...historicalData.map(d => d.heartRate), 60);
-    const hrRange = maxHR - minHR || 1;
-    
-    // Create path for heart rate line
-    const pathData = historicalData.map((data, i) => {
-        const x = padding + (i / (historicalData.length - 1 || 1)) * chartWidth;
-        const y = padding + (1 - (data.heartRate - minHR) / hrRange) * chartHeight;
-        return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
-    }).join(' ');
-    
-    // Add area fill
-    const areaPath = pathData + ` L ${padding + chartWidth} ${padding + chartHeight} L ${padding} ${padding + chartHeight} Z`;
-    svg.innerHTML += `<path d="${areaPath}" fill="url(#heartRateGradient)" opacity="0.3" />`;
-    
-    // Add line
-    svg.innerHTML += `<path d="${pathData}" fill="none" stroke="#dc2626" stroke-width="3" />`;
-    
-    // Add dots for each data point
-    historicalData.forEach((data, i) => {
-        const x = padding + (i / (historicalData.length - 1 || 1)) * chartWidth;
-        const y = padding + (1 - (data.heartRate - minHR) / hrRange) * chartHeight;
-        svg.innerHTML += `
-            <circle cx="${x}" cy="${y}" r="4" fill="#dc2626" stroke="white" stroke-width="2">
-                <title>Time: ${data.time}s | HR: ${data.heartRate} | Hydration: ${Math.round(data.hydration)}%</title>
-            </circle>
-        `;
-    });
-    
-    // Add axis labels
-    svg.innerHTML += `
-        <text x="${padding}" y="${height - 5}" font-size="12" fill="#666">0s</text>
-        <text x="${width - padding}" y="${height - 5}" font-size="12" fill="#666" text-anchor="end">${exerciseDuration}s</text>
-        <text x="${width / 2}" y="${height - 5}" font-size="12" fill="#dc2626" text-anchor="middle">Heart Rate Trend</text>
-    `;
-}
-
-// Function to update stats display
-function updateStatsDisplay() {
-    const container = document.getElementById('statsContainer');
-    if (!container || !isExercising || historicalData.length === 0) return;
-    
-    container.innerHTML = `
-        <div class="grid grid-cols-4 gap-4 text-center">
-            <div class="bg-red-50 p-3 rounded-lg">
-                <p class="text-sm text-gray-600">Avg Heart Rate</p>
-                <p class="text-lg font-bold text-red-600">
-                    ${Math.round(historicalData.reduce((sum, d) => sum + d.heartRate, 0) / historicalData.length)}
-                </p>
-            </div>
-            <div class="bg-orange-50 p-3 rounded-lg">
-                <p class="text-sm text-gray-600">Calories Burned</p>
-                <p class="text-lg font-bold text-orange-600">
-                    ${Math.round(exerciseDuration * 0.15 * (parseFloat(userProfile.weight) || 70) / 60)}
-                </p>
-            </div>
-            <div class="bg-blue-50 p-3 rounded-lg">
-                <p class="text-sm text-gray-600">Avg Hydration</p>
-                <p class="text-lg font-bold text-blue-600">
-                    ${Math.round(historicalData.reduce((sum, d) => sum + d.hydration, 0) / historicalData.length)}%
-                </p>
-            </div>
-            <div class="bg-purple-50 p-3 rounded-lg">
-                <p class="text-sm text-gray-600">Duration</p>
-                <p class="text-lg font-bold text-purple-600">
-                    ${Math.floor(exerciseDuration / 60)}:${(exerciseDuration % 60).toString().padStart(2, '0')}
-                </p>
-            </div>
-        </div>
-    `;
-}
-
-// Update the toggleExercise function to use the new update method
-function toggleExercise() {
-    if (!isExercising) {
-        // Start exercise
-        isExercising = true;
-        exerciseDuration = 0;
-        historicalData = [];
-        recommendations = [];
-        
-        exerciseInterval = setInterval(() => {
-            exerciseDuration++;
-            updateBiometrics();
-            updateDynamicElements(); // Only update dynamic parts
-        }, 1000);
-    } else {
-        // Stop exercise
-        isExercising = false;
-        if (exerciseInterval) {
-            clearInterval(exerciseInterval);
-            exerciseInterval = null;
+            `;
+            
+            // Initial update of dynamic elements
+            updateDynamicElements();
         }
-        
-        // Reset biometrics
-        biometrics.heartRate = 72;
-        biometrics.heartRateZone = 'rest';
-        biometrics.hydrationLevel = 100;
-        biometrics.glycogenStores = 100;
-        biometrics.coreTemp = 37.0;
-        biometrics.recentlyHydrated = false;
-        biometrics.recentlyEnergized = false;
-        recommendations = [];
-        
-        renderDashboard(); // Full re-render when stopping
-    }
-}
 
-// Update completeRecommendation to use the new update method
-function completeRecommendation(recId) {
-    const rec = recommendations.find(r => r.id === recId);
-    if (!rec || !rec.actionable || rec.completed) return;
-    
-    recommendations = recommendations.map(r => 
-        r.id === recId ? {...r, completed: true} : r
-    );
-    
-    switch(rec.type) {
-        case 'hydration':
-            biometrics.hydrationLevel = Math.min(100, biometrics.hydrationLevel + 15);
-            biometrics.recentlyHydrated = true;
-            showNotification('💧 Hydration restored! Great job staying hydrated.');
-            break;
+        // Function to update only the dynamic parts
+        function updateDynamicElements() {
+            // Update biometric displays
+            const heartRateEl = document.getElementById('heartRateDisplay');
+            if (heartRateEl) heartRateEl.textContent = biometrics.heartRate;
             
-        case 'energy':
-            biometrics.glycogenStores = Math.min(100, biometrics.glycogenStores + 20);
-            biometrics.recentlyEnergized = true;
-            showNotification('⚡ Energy boosted! You\'re refueled and ready to go.');
-            break;
+            const heartRateZoneEl = document.getElementById('heartRateZone');
+            if (heartRateZoneEl) heartRateZoneEl.textContent = biometrics.heartRateZone;
             
-        case 'cooling':
-            biometrics.coreTemp = Math.max(37.0, biometrics.coreTemp - 0.5);
-            biometrics.heartRate = Math.max(72, biometrics.heartRate - 10);
-            showNotification('🌡️ Temperature normalized! Good recovery.');
-            break;
-    }
-    
-    updateDynamicElements(); // Only update dynamic parts
-}
+            const hydrationEl = document.getElementById('hydrationDisplay');
+            if (hydrationEl) hydrationEl.textContent = Math.round(biometrics.hydrationLevel) + '%';
+            
+            const hydrationBar = document.getElementById('hydrationBar');
+            if (hydrationBar) {
+                hydrationBar.style.width = biometrics.hydrationLevel + '%';
+                // Show cooldown indicator
+                const hydrationCard = hydrationBar.closest('.bg-blue-50');
+                if (hydrationCard) {
+                    const cooldownEl = hydrationCard.querySelector('.text-green-600');
+                    if (biometrics.hydrationCooldown > 0) {
+                        if (!cooldownEl) {
+                            hydrationCard.innerHTML += `<div class="text-xs text-green-600 mt-1">Protected: ${biometrics.hydrationCooldown}s</div>`;
+                        } else {
+                            cooldownEl.textContent = `Protected: ${biometrics.hydrationCooldown}s`;
+                        }
+                    } else if (cooldownEl) {
+                        cooldownEl.remove();
+                    }
+                }
+            }
+            
+            const energyEl = document.getElementById('energyDisplay');
+            if (energyEl) energyEl.textContent = Math.round(biometrics.glycogenStores) + '%';
+            
+            const energyBar = document.getElementById('energyBar');
+            if (energyBar) {
+                energyBar.style.width = biometrics.glycogenStores + '%';
+                // Show cooldown indicator
+                const energyCard = energyBar.closest('.bg-yellow-50');
+                if (energyCard) {
+                    const cooldownEl = energyCard.querySelector('.text-green-600');
+                    if (biometrics.energyCooldown > 0) {
+                        if (!cooldownEl) {
+                            energyCard.innerHTML += `<div class="text-xs text-green-600 mt-1">Protected: ${biometrics.energyCooldown}s</div>`;
+                        } else {
+                            cooldownEl.textContent = `Protected: ${biometrics.energyCooldown}s`;
+                        }
+                    } else if (cooldownEl) {
+                        cooldownEl.remove();
+                    }
+                }
+            }
+            
+            const tempEl = document.getElementById('tempDisplay');
+            if (tempEl) tempEl.textContent = biometrics.coreTemp.toFixed(1) + '°C';
+            
+            const tempStatus = document.getElementById('tempStatus');
+            if (tempStatus) {
+                tempStatus.textContent = biometrics.coreTemp > 38.0 ? '⚠️ High' : '✅ Normal';
+                tempStatus.className = `text-xs mt-2 px-2 py-1 rounded-full inline-block ${biometrics.coreTemp > 38.0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`;
+                
+                // Show cooldown indicator
+                const tempCard = tempStatus.closest('.bg-orange-50');
+                if (tempCard) {
+                    const cooldownEl = tempCard.querySelector('.text-blue-600');
+                    if (biometrics.tempCooldown > 0) {
+                        if (!cooldownEl) {
+                            tempCard.innerHTML += `<div class="text-xs text-blue-600 mt-1">Cooling: ${biometrics.tempCooldown}s</div>`;
+                        } else {
+                            cooldownEl.textContent = `Cooling: ${biometrics.tempCooldown}s`;
+                        }
+                    } else if (cooldownEl) {
+                        cooldownEl.remove();
+                    }
+                }
+            }
+            
+            // Update recommendations
+            updateRecommendationsDisplay();
+            
+            // Update performance chart
+            updatePerformanceChart();
+            
+            // Update stats
+            updateStatsDisplay();
+        }
 
+        // Function to update recommendations display
+        function updateRecommendationsDisplay() {
+            const container = document.getElementById('recommendationsContainer');
+            if (!container) return;
+            
+            if (recommendations.length > 0) {
+                container.innerHTML = recommendations.map((rec) => `
+                    <div class="${rec.bgColor} rounded-lg p-3 border-l-4 border-blue-500 ${rec.completed ? 'opacity-50' : ''}">
+                        <h4 class="font-semibold text-sm ${rec.completed ? 'line-through' : ''}">${rec.title}</h4>
+                        <p class="text-xs text-gray-700 mt-1">${rec.message}</p>
+                        ${rec.actionable && !rec.completed ? `
+                            <button onclick="completeRecommendation('${rec.id}')" class="mt-2 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-all">
+                                ✓ Done
+                            </button>
+                        ` : ''}
+                        ${rec.completed ? '<span class="text-xs text-green-600 mt-2 inline-block">✅ Completed</span>' : ''}
+                    </div>
+                `).join('');
+            } else {
+                container.innerHTML = `
+                    <div class="text-center py-8">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">📊</div>
+                        <p class="text-gray-500">${isExercising ? 'AI analyzing your performance...' : 'Start exercising to receive AI recommendations!'}</p>
+                    </div>
+                `;
+            }
+            
+            // Add medical recommendations if available
+            if (reportAnalysis && reportAnalysis.recommendations) {
+                container.innerHTML += `
+                    <div class="mt-4 pt-4 border-t">
+                        <h4 class="font-semibold text-sm mb-2">📋 From your medical report:</h4>
+                        <ul class="text-xs text-gray-600 space-y-1">
+                            ${reportAnalysis.recommendations.map(rec => `
+                                <li class="flex items-start">
+                                    <span class="mr-2">•</span>
+                                    <span>${rec}</span>
+                                </li>
+                            `).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+        }
+
+        // Function to update performance chart using SVG
+        function updatePerformanceChart() {
+            const svg = document.getElementById('performanceChart');
+            if (!svg || historicalData.length === 0) return;
+            
+            const width = 600;
+            const height = 240;
+            const padding = 20;
+            const chartWidth = width - (padding * 2);
+            const chartHeight = height - (padding * 2);
+            
+            // Clear existing chart
+            svg.innerHTML = '';
+            
+            // Create gradient definitions
+            svg.innerHTML += `
+                <defs>
+                    <linearGradient id="heartRateGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" style="stop-color:#ef4444;stop-opacity:0.8" />
+                        <stop offset="100%" style="stop-color:#dc2626;stop-opacity:0.8" />
+                    </linearGradient>
+                    <linearGradient id="hydrationGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:0.6" />
+                        <stop offset="100%" style="stop-color:#2563eb;stop-opacity:0.6" />
+                    </linearGradient>
+                </defs>
+            `;
+            
+            // Calculate scales
+            const maxHR = Math.max(...historicalData.map(d => d.heartRate), 200);
+            const minHR = Math.min(...historicalData.map(d => d.heartRate), 60);
+            const hrRange = maxHR - minHR || 1;
+            
+            // Create paths for heart rate line
+            const hrPathData = historicalData.map((data, i) => {
+                const x = padding + (i / (historicalData.length - 1 || 1)) * chartWidth;
+                const y = padding + (1 - (data.heartRate - minHR) / hrRange) * chartHeight;
+                return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+            }).join(' ');
+            
+            // Create path for hydration line
+            const hydrationPathData = historicalData.map((data, i) => {
+                const x = padding + (i / (historicalData.length - 1 || 1)) * chartWidth;
+                const y = padding + (1 - data.hydration / 100) * chartHeight;
+                return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+            }).join(' ');
+            
+            // Add area fills
+            const hrAreaPath = hrPathData + ` L ${padding + chartWidth} ${padding + chartHeight} L ${padding} ${padding + chartHeight} Z`;
+            svg.innerHTML += `<path d="${hrAreaPath}" fill="url(#heartRateGradient)" opacity="0.3" />`;
+            
+            // Add lines
+            svg.innerHTML += `<path d="${hrPathData}" fill="none" stroke="#dc2626" stroke-width="3" />`;
+            svg.innerHTML += `<path d="${hydrationPathData}" fill="none" stroke="#3b82f6" stroke-width="2" stroke-dasharray="5,5" />`;
+            
+            // Add dots for each data point
+            historicalData.forEach((data, i) => {
+                const x = padding + (i / (historicalData.length - 1 || 1)) * chartWidth;
+                const hrY = padding + (1 - (data.heartRate - minHR) / hrRange) * chartHeight;
+                const hydrationY = padding + (1 - data.hydration / 100) * chartHeight;
+                
+                // Heart rate dot
+                svg.innerHTML += `
+                    <circle cx="${x}" cy="${hrY}" r="4" fill="#dc2626" stroke="white" stroke-width="2">
+                        <title>Time: ${data.time}s | HR: ${data.heartRate} | Hydration: ${Math.round(data.hydration)}%</title>
+                    </circle>
+                `;
+                
+                // Hydration dot (smaller)
+                svg.innerHTML += `
+                    <circle cx="${x}" cy="${hydrationY}" r="3" fill="#3b82f6" stroke="white" stroke-width="2">
+                        <title>Hydration: ${Math.round(data.hydration)}%</title>
+                    </circle>
+                `;
+            });
+            
+            // Add axis labels
+            svg.innerHTML += `
+                <text x="${padding}" y="${height - 5}" font-size="12" fill="#666">0s</text>
+                <text x="${width - padding}" y="${height - 5}" font-size="12" fill="#666" text-anchor="end">${exerciseDuration}s</text>
+                <text x="${width / 2}" y="${height - 5}" font-size="12" fill="#dc2626" text-anchor="middle">❤️ Heart Rate</text>
+                <text x="${width / 2}" y="15" font-size="12" fill="#3b82f6" text-anchor="middle">💧 Hydration</text>
+            `;
+        }
+
+        // Function to update stats display
+        function updateStatsDisplay() {
+            const container = document.getElementById('statsContainer');
+            if (!container || !isExercising || historicalData.length === 0) return;
+            
+            container.innerHTML = `
+                <div class="grid grid-cols-4 gap-4 text-center">
+                    <div class="bg-red-50 p-3 rounded-lg">
+                        <p class="text-sm text-gray-600">Avg Heart Rate</p>
+                        <p class="text-lg font-bold text-red-600">
+                            ${Math.round(historicalData.reduce((sum, d) => sum + d.heartRate, 0) / historicalData.length)}
+                        </p>
+                    </div>
+                    <div class="bg-orange-50 p-3 rounded-lg">
+                        <p class="text-sm text-gray-600">Calories Burned</p>
+                        <p class="text-lg font-bold text-orange-600">
+                            ${Math.round(exerciseDuration * 0.15 * (parseFloat(userProfile.weight) || 70) / 60)}
+                        </p>
+                    </div>
+                    <div class="bg-blue-50 p-3 rounded-lg">
+                        <p class="text-sm text-gray-600">Avg Hydration</p>
+                        <p class="text-lg font-bold text-blue-600">
+                            ${Math.round(historicalData.reduce((sum, d) => sum + d.hydration, 0) / historicalData.length)}%
+                        </p>
+                    </div>
+                    <div class="bg-purple-50 p-3 rounded-lg">
+                        <p class="text-sm text-gray-600">Duration</p>
+                        <p class="text-lg font-bold text-purple-600">
+                            ${Math.floor(exerciseDuration / 60)}:${(exerciseDuration % 60).toString().padStart(2, '0')}
+                        </p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Toggle exercise function
         function toggleExercise() {
             if (!isExercising) {
                 // Start exercise
@@ -1016,11 +1057,17 @@ function completeRecommendation(recId) {
                 exerciseDuration = 0;
                 historicalData = [];
                 recommendations = [];
+                completedRecommendations = {};
+                
+                // Reset alert timings
+                biometrics.lastHydrationAlert = 0;
+                biometrics.lastEnergyAlert = 0;
+                biometrics.lastTempAlert = 0;
                 
                 exerciseInterval = setInterval(() => {
                     exerciseDuration++;
                     updateBiometrics();
-                    renderDashboard();
+                    updateDynamicElements();
                 }, 1000);
             } else {
                 // Stop exercise
@@ -1030,21 +1077,32 @@ function completeRecommendation(recId) {
                     exerciseInterval = null;
                 }
                 
-                // Reset biometrics gradually
-                biometrics.heartRate = 72;
-                biometrics.heartRateZone = 'rest';
-                biometrics.hydrationLevel = 100;
-                biometrics.glycogenStores = 100;
-                biometrics.coreTemp = 37.0;
-                biometrics.recentlyHydrated = false;
-                biometrics.recentlyEnergized = false;
+                // Reset biometrics
+                biometrics = {
+                    heartRate: 72,
+                    heartRateZone: 'rest',
+                    hydrationLevel: 100,
+                    glycogenStores: 100,
+                    coreTemp: 37.0,
+                    hydrationCooldown: 0,
+                    energyCooldown: 0,
+                    tempCooldown: 0,
+                    lastHydrationAlert: 0,
+                    lastEnergyAlert: 0,
+                    lastTempAlert: 0
+                };
                 recommendations = [];
+                completedRecommendations = {};
+                
+                renderDashboard();
             }
-            renderDashboard();
         }
         
         // Initialize the app
         showWelcome();
+        
     </script>
 </body>
 </html>
+
+        
