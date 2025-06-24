@@ -1068,4 +1068,242 @@
                         <p class="text-lg font-bold text-red-600">${avgHR} bpm</p>
                     </div>
                     <div class="bg-orange-50 p-3 rounded-lg hover:bg-orange-100 transition-colors">
-                        <p class="text-sm text-gray
+                        <p class="text-sm text-gray-600">Calories Burned</p>
+                        <p class="text-lg font-bold text-orange-600">${caloriesBurned} cal</p>
+                    </div>
+                    <div class="bg-blue-50 p-3 rounded-lg hover:bg-blue-100 transition-colors">
+                        <p class="text-sm text-gray-600">Avg Hydration</p>
+                        <p class="text-lg font-bold text-blue-600">${avgHydration}%</p>
+                    </div>
+                    <div class="bg-purple-50 p-3 rounded-lg hover:bg-purple-100 transition-colors">
+                        <p class="text-sm text-gray-600">Duration</p>
+                        <p class="text-lg font-bold text-purple-600">
+                            ${Math.floor(exerciseDuration / 60)}:${(exerciseDuration % 60).toString().padStart(2, '0')}
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="mt-4 text-center">
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <p class="text-sm text-gray-600">Estimated Sweat Loss</p>
+                        <p class="text-lg font-bold text-gray-700">${sweatLoss}L</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // FIXED Toggle exercise function
+        function toggleExercise() {
+            if (!isExercising) {
+                // Start exercise
+                isExercising = true;
+                exerciseDuration = 0;
+                historicalData = [];
+                recommendations = [];
+                completedRecommendations = {};
+                
+                // Reset alert timings
+                biometrics.lastHydrationAlert = 0;
+                biometrics.lastEnergyAlert = 0;
+                biometrics.lastTempAlert = 0;
+                
+                // Reset cooldowns
+                biometrics.hydrationCooldown = 0;
+                biometrics.energyCooldown = 0;
+                biometrics.tempCooldown = 0;
+                
+                showNotification('🏃 Exercise session started! AI monitoring activated.', 'success');
+                
+                exerciseInterval = setInterval(() => {
+                    exerciseDuration++;
+                    updateBiometrics();
+                }, 1000);
+                
+                // Update the UI immediately
+                renderDashboard();
+            } else {
+                // Stop exercise
+                isExercising = false;
+                if (exerciseInterval) {
+                    clearInterval(exerciseInterval);
+                    exerciseInterval = null;
+                }
+                
+                const totalCalories = Math.round(exerciseDuration * 0.15 * (parseFloat(userProfile.weight) || 70) / 60);
+                const sessionDuration = `${Math.floor(exerciseDuration / 60)}:${(exerciseDuration % 60).toString().padStart(2, '0')}`;
+                
+                showNotification(`🏁 Exercise completed! Duration: ${sessionDuration}, Calories: ${totalCalories}`, 'success');
+                
+                // Reset biometrics gradually
+                setTimeout(() => {
+                    biometrics = {
+                        heartRate: 72,
+                        heartRateZone: 'rest',
+                        hydrationLevel: 100,
+                        glycogenStores: 100,
+                        coreTemp: 37.0,
+                        hydrationCooldown: 0,
+                        energyCooldown: 0,
+                        tempCooldown: 0,
+                        lastHydrationAlert: 0,
+                        lastEnergyAlert: 0,
+                        lastTempAlert: 0,
+                        sweatRate: 0
+                    };
+                    recommendations = [];
+                    completedRecommendations = {};
+                    exerciseDuration = 0;
+                    
+                    renderDashboard();
+                }, 2000);
+                
+                // Update UI immediately to show stopped state
+                renderDashboard();
+            }
+        }
+        
+        // Utility functions
+        function formatTime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+            
+            if (hours > 0) {
+                return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }
+            return `${minutes}:${secs.toString().padStart(2, '0')}`;
+        }
+        
+        function getHeartRateZoneColor(zone) {
+            const colors = {
+                'rest': 'bg-gray-100 text-gray-600',
+                'warm-up': 'bg-blue-100 text-blue-600',
+                'fat-burn': 'bg-green-100 text-green-600',
+                'aerobic': 'bg-yellow-100 text-yellow-600',
+                'cardio': 'bg-orange-100 text-orange-600',
+                'peak': 'bg-red-100 text-red-600'
+            };
+            return colors[zone] || 'bg-gray-100 text-gray-600';
+        }
+        
+        // Enhanced error handling
+        window.addEventListener('error', function(e) {
+            console.error('BioSync Error:', e.error);
+            showNotification('An error occurred. Please refresh the page if issues persist.', 'error');
+        });
+        
+        // Prevent accidental page refresh during exercise
+        window.addEventListener('beforeunload', function(e) {
+            if (isExercising) {
+                e.preventDefault();
+                e.returnValue = 'You have an active exercise session. Are you sure you want to leave?';
+                return e.returnValue;
+            }
+        });
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            // Space bar to toggle exercise (only on dashboard)
+            if (e.code === 'Space' && currentStep === 'dashboard' && !e.target.matches('input, textarea, select')) {
+                e.preventDefault();
+                toggleExercise();
+            }
+            
+            // Escape to stop exercise
+            if (e.code === 'Escape' && isExercising) {
+                toggleExercise();
+            }
+        });
+        
+        // Visibility change handling (pause when tab is not visible)
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden && isExercising) {
+                // Optionally pause or continue in background
+                console.log('BioSync: Tab hidden, exercise continues in background');
+            } else if (!document.hidden && isExercising) {
+                console.log('BioSync: Tab visible, exercise tracking active');
+            }
+        });
+        
+        // Auto-save user progress to localStorage (optional)
+        function saveProgress() {
+            if (typeof(Storage) !== "undefined") {
+                const progressData = {
+                    userProfile: userProfile,
+                    timestamp: Date.now()
+                };
+                localStorage.setItem('biosync_progress', JSON.stringify(progressData));
+            }
+        }
+        
+        function loadProgress() {
+            if (typeof(Storage) !== "undefined") {
+                const saved = localStorage.getItem('biosync_progress');
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    // Only load if saved within last 24 hours
+                    if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
+                        return data.userProfile;
+                    }
+                }
+            }
+            return null;
+        }
+        
+        // Performance monitoring
+        function logPerformanceMetrics() {
+            if (isExercising && exerciseDuration % 30 === 0) { // Every 30 seconds
+                const metrics = {
+                    duration: exerciseDuration,
+                    heartRate: biometrics.heartRate,
+                    hydration: biometrics.hydrationLevel,
+                    energy: biometrics.glycogenStores,
+                    temperature: biometrics.coreTemp,
+                    recommendations: recommendations.length,
+                    timestamp: Date.now()
+                };
+                console.log('BioSync Metrics:', metrics);
+            }
+        }
+        
+        // Add performance logging to biometric updates
+        const originalUpdateBiometrics = updateBiometrics;
+        updateBiometrics = function() {
+            originalUpdateBiometrics();
+            logPerformanceMetrics();
+        };
+        
+        // Initialize the app with progress loading
+        function initializeBioSync() {
+            // Try to load saved progress
+            const savedProfile = loadProgress();
+            if (savedProfile && savedProfile.name) {
+                userProfile = { ...userProfile, ...savedProfile };
+                showNotification(`Welcome back, ${userProfile.name}! 👋`, 'success');
+                // Could optionally ask if they want to continue with saved data
+            }
+            
+            // Start with welcome screen
+            showWelcome();
+            
+            console.log('🧠 BioSync initialized successfully!');
+            console.log('💡 Tip: Press Space to start/stop exercise, Escape to stop');
+        }
+        
+        // Save progress when profile is updated
+        const originalHandleProfileSubmit = handleProfileSubmit;
+        handleProfileSubmit = function(event) {
+            originalHandleProfileSubmit(event);
+            saveProgress();
+        };
+        
+        // Initialize the app when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeBioSync);
+        } else {
+            initializeBioSync();
+        }
+        
+    </script>
+</body>
+</html>
