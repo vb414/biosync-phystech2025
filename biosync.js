@@ -16,77 +16,34 @@ const TrendingUp = ({ className = "" }) => <span className={className}>📈</spa
 const Upload = ({ className = "" }) => <span className={className}>📤</span>;
 const Shield = ({ className = "" }) => <span className={className}>🛡️</span>;
 
-// Enhanced Chart Component
+// Chart Component
 const SimpleChart = ({ data }) => {
     if (!data || data.length === 0) return <div className="text-gray-500 text-center">No data yet - Start exercising to see your performance</div>;
     
-    const maxHR = Math.max(...data.map(d => d.heartRate || 0), 200);
-    const minHR = Math.min(...data.map(d => d.heartRate || 0), 60);
-    const hrRange = maxHR - minHR || 1;
+    const maxValue = Math.max(...data.map(d => d.heartRate || 0), 100);
     
     return (
         <div className="h-full w-full bg-gray-50 rounded p-4">
-            <svg width="100%" height="100%" viewBox="0 0 600 240" preserveAspectRatio="none">
-                <defs>
-                    <linearGradient id="heartRateGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" style={{stopColor:'#ef4444', stopOpacity:0.8}} />
-                        <stop offset="100%" style={{stopColor:'#dc2626', stopOpacity:0.8}} />
-                    </linearGradient>
-                    <linearGradient id="hydrationGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" style={{stopColor:'#3b82f6', stopOpacity:0.6}} />
-                        <stop offset="100%" style={{stopColor:'#2563eb', stopOpacity:0.6}} />
-                    </linearGradient>
-                </defs>
-                
-                {/* Heart Rate Path */}
-                <path
-                    d={data.map((item, i) => {
-                        const x = 20 + (i / (data.length - 1 || 1)) * 560;
-                        const y = 20 + (1 - (item.heartRate - minHR) / hrRange) * 200;
-                        return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
-                    }).join(' ')}
-                    fill="none"
-                    stroke="#dc2626"
-                    strokeWidth="3"
-                />
-                
-                {/* Hydration Path */}
-                <path
-                    d={data.map((item, i) => {
-                        const x = 20 + (i / (data.length - 1 || 1)) * 560;
-                        const y = 20 + (1 - item.hydration / 100) * 200;
-                        return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
-                    }).join(' ')}
-                    fill="none"
-                    stroke="#3b82f6"
-                    strokeWidth="2"
-                    strokeDasharray="5,5"
-                />
-                
-                {/* Data Points */}
-                {data.map((item, i) => {
-                    const x = 20 + (i / (data.length - 1 || 1)) * 560;
-                    const hrY = 20 + (1 - (item.heartRate - minHR) / hrRange) * 200;
-                    const hydrationY = 20 + (1 - item.hydration / 100) * 200;
-                    
-                    return (
-                        <g key={i}>
-                            <circle cx={x} cy={hrY} r="4" fill="#dc2626" stroke="white" strokeWidth="2">
-                                <title>Time: {item.time}s | HR: {item.heartRate} | Hydration: {Math.round(item.hydration)}%</title>
-                            </circle>
-                            <circle cx={x} cy={hydrationY} r="3" fill="#3b82f6" stroke="white" strokeWidth="2">
-                                <title>Hydration: {Math.round(item.hydration)}%</title>
-                            </circle>
-                        </g>
-                    );
-                })}
-                
-                {/* Labels */}
-                <text x="20" y="235" fontSize="12" fill="#666">0s</text>
-                <text x="580" y="235" fontSize="12" fill="#666" textAnchor="end">{data[data.length - 1]?.time}s</text>
-                <text x="300" y="235" fontSize="12" fill="#dc2626" textAnchor="middle">❤️ Heart Rate</text>
-                <text x="300" y="15" fontSize="12" fill="#3b82f6" textAnchor="middle">💧 Hydration</text>
-            </svg>
+            <div className="flex items-end space-x-1 h-48">
+                {data.slice(-30).map((item, i) => (
+                    <div key={i} className="flex-1 flex flex-col justify-end">
+                        <div 
+                            className="w-full bg-gradient-to-t from-red-500 to-red-400 rounded-t transition-all duration-300 hover:from-red-600 hover:to-red-500"
+                            style={{ 
+                                height: `${(item.heartRate / maxValue) * 100}%`, 
+                                minHeight: '4px',
+                                animation: 'grow 0.5s ease-out'
+                            }}
+                            title={`Time: ${item.time}s | HR: ${item.heartRate} | Hydration: ${Math.round(item.hydration)}%`}
+                        />
+                    </div>
+                ))}
+            </div>
+            <div className="flex justify-between mt-2 text-xs text-gray-600">
+                <span>Time: {data.length > 0 ? data[0].time : 0}s</span>
+                <span className="text-red-500">Heart Rate Trend</span>
+                <span>Time: {data.length > 0 ? data[data.length - 1].time : 0}s</span>
+            </div>
         </div>
     );
 };
@@ -116,7 +73,7 @@ const BioSyncAdvanced = () => {
     const [medicalReport, setMedicalReport] = useState(null);
     const [reportAnalysis, setReportAnalysis] = useState(null);
 
-    // Enhanced biometrics state with cooldowns
+    // Biometrics state
     const [biometrics, setBiometrics] = useState({
         heartRate: 72,
         heartRateZone: 'rest',
@@ -126,17 +83,24 @@ const BioSyncAdvanced = () => {
         electrolyteBalance: { sodium: 140, potassium: 4.0, magnesium: 1.8 },
         glycogenStores: 100,
         fatigue: 0,
-        vo2Max: 45,
+        vo2Max: 45
+    });
+
+    // Cooldown tracking
+    const [cooldowns, setCooldowns] = useState({
         hydrationCooldown: 0,
         energyCooldown: 0,
-        tempCooldown: 0,
-        lastHydrationAlert: 0,
-        lastEnergyAlert: 0,
-        lastTempAlert: 0
+        tempCooldown: 0
+    });
+
+    // Alert tracking
+    const [lastAlerts, setLastAlerts] = useState({
+        hydration: 0,
+        energy: 0,
+        temp: 0
     });
 
     const [recommendations, setRecommendations] = useState([]);
-    const [completedRecommendations, setCompletedRecommendations] = useState({});
     const [alerts, setAlerts] = useState([]);
     const [historicalData, setHistoricalData] = useState([]);
     const intervalRef = useRef(null);
@@ -192,7 +156,6 @@ const BioSyncAdvanced = () => {
         }
     }, [exerciseDuration, isExercising]);
 
-    // Enhanced updateBiometrics with cooldown system
     const updateBiometrics = () => {
         setBiometrics(prev => {
             const intensityMultiplier = {
@@ -214,29 +177,23 @@ const BioSyncAdvanced = () => {
 
             const intensityFactor = Math.max(hrPercentage / 100, 0);
             const bodyWeightFactor = (parseFloat(userProfile.weight) || 70) / 70;
+            const newSweatRate = 0.5 * intensityFactor * bodyWeightFactor;
             
-            // Decrease cooldowns
-            let newHydrationCooldown = Math.max(prev.hydrationCooldown - 1, 0);
-            let newEnergyCooldown = Math.max(prev.energyCooldown - 1, 0);
-            let newTempCooldown = Math.max(prev.tempCooldown - 1, 0);
-            
-            // Calculate new values based on cooldowns
+            // Only decrease if not in cooldown
             let newHydration = prev.hydrationLevel;
-            if (newHydrationCooldown === 0) {
-                const sweatRate = 0.5 * intensityFactor * bodyWeightFactor;
-                newHydration = Math.max(prev.hydrationLevel - (sweatRate * 0.5), 0);
+            if (cooldowns.hydrationCooldown === 0) {
+                newHydration = Math.max(prev.hydrationLevel - (newSweatRate * 0.5), 0);
             }
             
             let newGlycogen = prev.glycogenStores;
-            if (newEnergyCooldown === 0) {
+            if (cooldowns.energyCooldown === 0) {
                 newGlycogen = Math.max(prev.glycogenStores - (intensityFactor * 0.3), 0);
             }
             
             let newCoreTemp = prev.coreTemp;
-            if (newTempCooldown === 0) {
+            if (cooldowns.tempCooldown === 0) {
                 newCoreTemp = Math.min(prev.coreTemp + intensityFactor * 0.015, 39.5);
             } else {
-                // Cool down faster when in cooldown
                 newCoreTemp = Math.max(prev.coreTemp - 0.02, 37.0);
             }
 
@@ -244,18 +201,21 @@ const BioSyncAdvanced = () => {
                 ...prev,
                 heartRate: Math.round(newHR),
                 heartRateZone: zone,
-                sweatRate: 0.5 * intensityFactor * bodyWeightFactor,
+                sweatRate: newSweatRate,
                 coreTemp: newCoreTemp,
                 hydrationLevel: newHydration,
-                glycogenStores: newGlycogen,
-                hydrationCooldown: newHydrationCooldown,
-                energyCooldown: newEnergyCooldown,
-                tempCooldown: newTempCooldown
+                glycogenStores: newGlycogen
             };
         });
+
+        // Update cooldowns
+        setCooldowns(prev => ({
+            hydrationCooldown: Math.max(prev.hydrationCooldown - 1, 0),
+            energyCooldown: Math.max(prev.energyCooldown - 1, 0),
+            tempCooldown: Math.max(prev.tempCooldown - 1, 0)
+        }));
     };
 
-    // Enhanced generateRecommendations with repeated alerts
     const generateRecommendations = () => {
         const recs = [];
 
@@ -264,63 +224,64 @@ const BioSyncAdvanced = () => {
             id: 'status',
             type: 'status',
             title: `${userProfile.name}'s AI Analysis`,
-            message: `Monitoring your ${exerciseType} session - ${Math.floor(exerciseDuration/60)}:${(exerciseDuration%60).toString().padStart(2,'0')} elapsed. Heart rate in ${biometrics.heartRateZone} zone.`,
+            message: `Monitoring your ${exerciseType} session - ${Math.floor(exerciseDuration/60)}:${(exerciseDuration%60).toString().padStart(2,'0')} elapsed`,
             icon: Brain,
             color: 'text-blue-500',
             bgColor: 'bg-blue-50',
-            actionable: false
+            actionable: false,
+            completed: false
         });
 
-        // HYDRATION - Show again after 60 seconds if still low
-        if (biometrics.hydrationLevel < 90 && (exerciseDuration - biometrics.lastHydrationAlert) > 60) {
+        // Hydration recommendation
+        if (biometrics.hydrationLevel < 90 && (exerciseDuration - lastAlerts.hydration) > 60) {
             const waterNeeded = Math.round((100 - biometrics.hydrationLevel) * (parseFloat(userProfile.weight) || 70) * 0.01 * 1000);
             recs.push({
                 id: `hydration_${exerciseDuration}`,
                 type: 'hydration',
-                title: biometrics.hydrationLevel < 70 ? 'URGENT: Hydration Alert' : 'Hydration Alert',
-                message: `${userProfile.name}, drink ${waterNeeded}ml water to maintain optimal hydration. Your hydration is at ${Math.round(biometrics.hydrationLevel)}%.`,
+                title: 'Hydration Alert',
+                message: `Drink ${waterNeeded}ml water to maintain optimal hydration`,
                 icon: Droplets,
                 color: 'text-blue-500',
-                bgColor: biometrics.hydrationLevel < 70 ? 'bg-red-50' : 'bg-blue-50',
-                actionable: true
+                bgColor: 'bg-blue-50',
+                actionable: true,
+                completed: false
             });
-            setBiometrics(prev => ({ ...prev, lastHydrationAlert: exerciseDuration }));
+            setLastAlerts(prev => ({ ...prev, hydration: exerciseDuration }));
         }
 
-        // ENERGY - Show again after 90 seconds if still low
-        if (biometrics.glycogenStores < 70 && (exerciseDuration - biometrics.lastEnergyAlert) > 90) {
-            const baseCarbs = userProfile.gender === 'female' ? 25 : 30;
-            const recommendedCarbs = Math.round(baseCarbs * (exerciseType === 'running' ? 1.2 : 1.0));
-            
+        // Energy recommendation
+        if (biometrics.glycogenStores < 70 && (exerciseDuration - lastAlerts.energy) > 90) {
             recs.push({
                 id: `energy_${exerciseDuration}`,
                 type: 'energy',
                 title: 'Energy Management',
-                message: `${userProfile.name}, consume ${recommendedCarbs}g quick carbs to maintain energy. Your glycogen is at ${Math.round(biometrics.glycogenStores)}%.`,
+                message: 'Consider consuming 15-30g carbs to maintain energy',
                 icon: Zap,
                 color: 'text-yellow-500',
                 bgColor: 'bg-yellow-50',
-                actionable: true
+                actionable: true,
+                completed: false
             });
-            setBiometrics(prev => ({ ...prev, lastEnergyAlert: exerciseDuration }));
+            setLastAlerts(prev => ({ ...prev, energy: exerciseDuration }));
         }
 
-        // TEMPERATURE - Show again after 120 seconds if still high
-        if (biometrics.coreTemp > 38.0 && (exerciseDuration - biometrics.lastTempAlert) > 120) {
+        // Temperature recommendation
+        if (biometrics.coreTemp > 38.0 && (exerciseDuration - lastAlerts.temp) > 120) {
             recs.push({
                 id: `temp_${exerciseDuration}`,
                 type: 'cooling',
                 title: 'Temperature Rising',
-                message: `${userProfile.name}, core temp at ${biometrics.coreTemp.toFixed(1)}°C. Take a cooling break.`,
+                message: 'Core temperature elevated. Consider cooling strategies',
                 icon: Thermometer,
                 color: 'text-orange-500',
                 bgColor: 'bg-orange-50',
-                actionable: true
+                actionable: true,
+                completed: false
             });
-            setBiometrics(prev => ({ ...prev, lastTempAlert: exerciseDuration }));
+            setLastAlerts(prev => ({ ...prev, temp: exerciseDuration }));
         }
 
-        // Heart rate zone feedback (non-actionable)
+        // Heart rate zone feedback
         if (biometrics.heartRateZone === 'peak') {
             recs.push({
                 id: 'hr-peak',
@@ -330,7 +291,8 @@ const BioSyncAdvanced = () => {
                 icon: Heart,
                 color: 'text-red-500',
                 bgColor: 'bg-red-50',
-                actionable: false
+                actionable: false,
+                completed: false
             });
         } else if (biometrics.heartRateZone === 'cardio') {
             recs.push({
@@ -341,18 +303,16 @@ const BioSyncAdvanced = () => {
                 icon: Heart,
                 color: 'text-green-500',
                 bgColor: 'bg-green-50',
-                actionable: false
+                actionable: false,
+                completed: false
             });
         }
 
-        // Add completed recommendations back
-        Object.values(completedRecommendations).forEach(rec => {
-            if (!recs.find(r => r.id === rec.id)) {
-                recs.push(rec);
-            }
-        });
-
-        setRecommendations(recs);
+        // Keep completed recommendations
+        const currentCompletedIds = recommendations.filter(r => r.completed).map(r => r.id);
+        const completedRecs = recommendations.filter(r => r.completed);
+        
+        setRecommendations([...recs, ...completedRecs]);
     };
 
     const updateHistoricalData = () => {
@@ -360,54 +320,52 @@ const BioSyncAdvanced = () => {
             const newEntry = {
                 time: exerciseDuration,
                 heartRate: biometrics.heartRate,
-                hydration: biometrics.hydrationLevel,
-                glycogen: biometrics.glycogenStores,
-                fatigue: biometrics.fatigue || 0
+                hydration: Math.round(biometrics.hydrationLevel),
+                glycogen: Math.round(biometrics.glycogenStores),
+                fatigue: Math.round(biometrics.fatigue || 0)
             };
-            return [...prev.slice(-29), newEntry]; // Keep last 30 entries
+            return [...prev.slice(-59), newEntry];
         });
     };
 
-    // Complete recommendation handler
     const completeRecommendation = (recId) => {
         const rec = recommendations.find(r => r.id === recId);
-        if (!rec || !rec.actionable) return;
+        if (!rec || !rec.actionable || rec.completed) return;
 
-        // Mark as completed
-        const completedRec = { ...rec, completed: true };
-        setCompletedRecommendations(prev => ({ ...prev, [recId]: completedRec }));
+        // Update the recommendation to completed
+        setRecommendations(prev => prev.map(r => 
+            r.id === recId ? { ...r, completed: true } : r
+        ));
 
-        // Apply effects based on type
-        setBiometrics(prev => {
-            switch(rec.type) {
-                case 'hydration':
-                    showNotification('💧 Hydration restored! You\'ll maintain this level for a while.');
-                    return { ...prev, hydrationLevel: Math.min(100, prev.hydrationLevel + 20), hydrationCooldown: 45 };
-                    
-                case 'energy':
-                    showNotification('⚡ Energy boosted! Your glycogen stores are replenished.');
-                    return { ...prev, glycogenStores: Math.min(100, prev.glycogenStores + 25), energyCooldown: 60 };
-                    
-                case 'cooling':
-                    showNotification('🌡️ Cooling down! Your body temperature is normalizing.');
-                    return { 
-                        ...prev, 
-                        coreTemp: Math.max(37.0, prev.coreTemp - 0.3), 
-                        heartRate: Math.max(72, prev.heartRate - 10),
-                        tempCooldown: 30 
-                    };
-                    
-                default:
-                    return prev;
-            }
-        });
+        // Apply the effect based on type
+        switch(rec.type) {
+            case 'hydration':
+                setBiometrics(prev => ({ ...prev, hydrationLevel: Math.min(100, prev.hydrationLevel + 20) }));
+                setCooldowns(prev => ({ ...prev, hydrationCooldown: 45 }));
+                showNotification('💧 Hydration restored! Great job staying hydrated.');
+                break;
+                
+            case 'energy':
+                setBiometrics(prev => ({ ...prev, glycogenStores: Math.min(100, prev.glycogenStores + 25) }));
+                setCooldowns(prev => ({ ...prev, energyCooldown: 60 }));
+                showNotification('⚡ Energy boosted! You\'re refueled and ready to go.');
+                break;
+                
+            case 'cooling':
+                setBiometrics(prev => ({ 
+                    ...prev, 
+                    coreTemp: Math.max(37.0, prev.coreTemp - 0.3),
+                    heartRate: Math.max(72, prev.heartRate - 10)
+                }));
+                setCooldowns(prev => ({ ...prev, tempCooldown: 30 }));
+                showNotification('🌡️ Temperature normalized! Good recovery.');
+                break;
+        }
     };
 
-    // Notification function
     const showNotification = (message) => {
         const notification = document.createElement('div');
         notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-pulse';
-        notification.style.animation = 'slideIn 0.3s ease-out';
         notification.innerHTML = `
             <div class="flex items-center">
                 <span class="text-xl mr-2">✅</span>
@@ -440,12 +398,7 @@ const BioSyncAdvanced = () => {
                     cholesterol: Math.random() > 0.6 ? 'normal' : 'high',
                     hemoglobin: Math.random() > 0.8 ? 'normal' : 'low',
                     vitamins: { d: Math.random() > 0.5 ? 'normal' : 'low' },
-                    recommendations: [
-                        'Monitor blood sugar during exercise', 
-                        'Consider vitamin D supplementation',
-                        'Stay hydrated during workouts',
-                        'Maintain electrolyte balance'
-                    ]
+                    recommendations: ['Monitor blood sugar during exercise', 'Consider vitamin D supplementation']
                 };
                 setReportAnalysis(analysis);
             }, 2000);
@@ -471,45 +424,6 @@ const BioSyncAdvanced = () => {
         return colors[zone] || 'bg-gray-100 text-gray-600';
     };
 
-    // Toggle exercise function
-    const toggleExercise = () => {
-        if (!isExercising) {
-            setIsExercising(true);
-            setExerciseDuration(0);
-            setHistoricalData([]);
-            setRecommendations([]);
-            setCompletedRecommendations({});
-            setBiometrics(prev => ({
-                ...prev,
-                lastHydrationAlert: 0,
-                lastEnergyAlert: 0,
-                lastTempAlert: 0
-            }));
-        } else {
-            setIsExercising(false);
-            setExerciseDuration(0);
-            setBiometrics({
-                heartRate: 72,
-                heartRateZone: 'rest',
-                sweatRate: 0,
-                coreTemp: 37.0,
-                hydrationLevel: 100,
-                electrolyteBalance: { sodium: 140, potassium: 4.0, magnesium: 1.8 },
-                glycogenStores: 100,
-                fatigue: 0,
-                vo2Max: 45,
-                hydrationCooldown: 0,
-                energyCooldown: 0,
-                tempCooldown: 0,
-                lastHydrationAlert: 0,
-                lastEnergyAlert: 0,
-                lastTempAlert: 0
-            });
-            setRecommendations([]);
-            setCompletedRecommendations({});
-        }
-    };
-
     // WELCOME SCREEN
     if (currentStep === 'welcome') {
         return (
@@ -518,8 +432,7 @@ const BioSyncAdvanced = () => {
                     <Brain className="text-6xl mx-auto mb-6 block" />
                     <h1 className="text-4xl font-bold text-white mb-4 text-center">Welcome to BioSync</h1>
                     <p className="text-white/80 text-lg mb-8 text-center">
-                        AI-powered nutrition optimization that adapts to your unique physiology. 
-                        Let's personalize your experience with your health data.
+                        Let's personalize your nutrition optimization experience. We'll collect your personal information and optionally analyze your medical reports for the most accurate recommendations.
                     </p>
                     <div className="flex items-center justify-center space-x-4 mb-8">
                         <Shield className="text-3xl" />
@@ -527,7 +440,7 @@ const BioSyncAdvanced = () => {
                     </div>
                     <button
                         onClick={() => setCurrentStep('profile')}
-                        className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold py-4 rounded-xl hover:from-blue-600 hover:to-purple-600 transition-all"
+                        className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold py-4 rounded-xl hover:from-blue-600 hover:to-purple-600"
                     >
                         Get Started
                     </button>
@@ -553,7 +466,6 @@ const BioSyncAdvanced = () => {
                                         className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                                         value={userProfile.name}
                                         onChange={(e) => setUserProfile({...userProfile, name: e.target.value})}
-                                        placeholder="John Doe"
                                     />
                                 </div>
                                 <div>
@@ -566,7 +478,6 @@ const BioSyncAdvanced = () => {
                                         className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                                         value={userProfile.age}
                                         onChange={(e) => setUserProfile({...userProfile, age: e.target.value})}
-                                        placeholder="25"
                                     />
                                 </div>
                             </div>
@@ -575,7 +486,7 @@ const BioSyncAdvanced = () => {
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
                                 <div className="flex space-x-4">
                                     {['male', 'female', 'other'].map(gender => (
-                                        <label key={gender} className="flex items-center cursor-pointer">
+                                        <label key={gender} className="flex items-center">
                                             <input
                                                 type="radio"
                                                 name="gender"
@@ -603,7 +514,6 @@ const BioSyncAdvanced = () => {
                                         className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                                         value={userProfile.weight}
                                         onChange={(e) => setUserProfile({...userProfile, weight: e.target.value})}
-                                        placeholder="70"
                                     />
                                 </div>
                                 <div>
@@ -616,7 +526,6 @@ const BioSyncAdvanced = () => {
                                         className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                                         value={userProfile.height}
                                         onChange={(e) => setUserProfile({...userProfile, height: e.target.value})}
-                                        placeholder="175"
                                     />
                                 </div>
                             </div>
@@ -640,9 +549,9 @@ const BioSyncAdvanced = () => {
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Fitness Goals</label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {['Weight Loss', 'Muscle Gain', 'Endurance', 'General Health', 'Performance', 'Recovery'].map(goal => (
-                                        <label key={goal} className="flex items-center cursor-pointer">
+                                <div className="space-y-2">
+                                    {['Weight Loss', 'Muscle Gain', 'Endurance', 'General Health', 'Performance'].map(goal => (
+                                        <label key={goal} className="flex items-center">
                                             <input
                                                 type="checkbox"
                                                 className="mr-2"
@@ -663,9 +572,9 @@ const BioSyncAdvanced = () => {
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Medical Conditions</label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {['None', 'Diabetes', 'Hypertension', 'Heart Disease', 'Asthma', 'Thyroid'].map(condition => (
-                                        <label key={condition} className="flex items-center cursor-pointer">
+                                <div className="space-y-2">
+                                    {['None', 'Diabetes', 'Hypertension', 'Heart Disease', 'Asthma'].map(condition => (
+                                        <label key={condition} className="flex items-center">
                                             <input
                                                 type="checkbox"
                                                 className="mr-2"
@@ -686,7 +595,7 @@ const BioSyncAdvanced = () => {
 
                             {userProfile.bmi && (
                                 <div className="bg-blue-50 rounded-lg p-4">
-                                    <h3 className="font-semibold text-gray-800 mb-2">📊 Your Calculated Metrics:</h3>
+                                    <h3 className="font-semibold text-gray-800 mb-2">Your Calculated Metrics:</h3>
                                     <div className="grid grid-cols-3 gap-4 text-sm">
                                         <div><span className="text-gray-600">BMI:</span> <span className="font-semibold ml-2">{userProfile.bmi}</span></div>
                                         <div><span className="text-gray-600">BMR:</span> <span className="font-semibold ml-2">{userProfile.bmr} cal/day</span></div>
@@ -697,7 +606,7 @@ const BioSyncAdvanced = () => {
 
                             <button
                                 type="submit"
-                                className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold py-3 rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all"
+                                className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold py-3 rounded-lg hover:from-blue-600 hover:to-purple-600"
                             >
                                 Continue to Medical Information
                             </button>
@@ -708,7 +617,7 @@ const BioSyncAdvanced = () => {
         );
     }
 
-// MEDICAL REPORT UPLOAD SCREEN
+    // MEDICAL REPORT UPLOAD SCREEN
     if (currentStep === 'medical') {
         return (
             <div className="min-h-screen bg-gray-50 py-8">
@@ -832,24 +741,46 @@ const BioSyncAdvanced = () => {
                                 className="px-4 py-2 border rounded-lg"
                                 disabled={isExercising}
                             >
-                                <option value="running">🏃 Running</option>
-                                <option value="cycling">🚴 Cycling</option>
-                                <option value="swimming">🏊 Swimming</option>
-                                <option value="strength">💪 Strength</option>
-                                <option value="yoga">🧘 Yoga</option>
+                                <option value="running">Running</option>
+                                <option value="cycling">Cycling</option>
+                                <option value="swimming">Swimming</option>
+                                <option value="strength">Strength</option>
+                                <option value="yoga">Yoga</option>
                             </select>
                             <button
-                                onClick={toggleExercise}
+                                onClick={() => {
+                                    if (!isExercising) {
+                                        setIsExercising(true);
+                                        setExerciseDuration(0);
+                                        setHistoricalData([]);
+                                        setRecommendations([]);
+                                        setLastAlerts({ hydration: 0, energy: 0, temp: 0 });
+                                    } else {
+                                        setIsExercising(false);
+                                        setCooldowns({ hydrationCooldown: 0, energyCooldown: 0, tempCooldown: 0 });
+                                        setBiometrics({
+                                            heartRate: 72,
+                                            heartRateZone: 'rest',
+                                            sweatRate: 0,
+                                            coreTemp: 37.0,
+                                            hydrationLevel: 100,
+                                            electrolyteBalance: { sodium: 140, potassium: 4.0, magnesium: 1.8 },
+                                            glycogenStores: 100,
+                                            fatigue: 0,
+                                            vo2Max: 45
+                                        });
+                                    }
+                                }}
                                 className={`px-6 py-2 rounded-lg font-semibold text-white transition-colors ${
                                     isExercising 
                                         ? 'bg-red-500 hover:bg-red-600' 
-                                        : 'bg-green-500 hover:bg-green-600'
+                                        : 'bg-blue-500 hover:bg-blue-600'
                                 }`}
                             >
-                                {isExercising ? '⏹️ Stop' : '▶️ Start'}
+                                {isExercising ? 'Stop' : 'Start'}
                             </button>
                             {isExercising && (
-                                <div className="font-mono text-lg font-semibold animate-pulse">
+                                <div className="font-mono text-lg font-semibold">
                                     {formatDuration(exerciseDuration)}
                                 </div>
                             )}
@@ -867,7 +798,7 @@ const BioSyncAdvanced = () => {
                         <span><strong>Activity:</strong> {userProfile.activityLevel}</span>
                         <span><strong>Max HR:</strong> {userProfile.maxHeartRate} bpm</span>
                         {isExercising && (
-                            <span className="text-green-600 font-semibold animate-pulse">
+                            <span className="text-green-600 font-semibold">
                                 🟢 Exercise Active
                             </span>
                         )}
@@ -901,8 +832,8 @@ const BioSyncAdvanced = () => {
                                     style={{ width: `${biometrics.hydrationLevel}%` }}
                                 />
                             </div>
-                            {biometrics.hydrationCooldown > 0 && (
-                                <div className="text-xs text-green-600 mt-1">Protected: {biometrics.hydrationCooldown}s</div>
+                            {cooldowns.hydrationCooldown > 0 && (
+                                <div className="text-xs text-green-600 mt-1">Protected: {cooldowns.hydrationCooldown}s</div>
                             )}
                         </div>
                         <div className="bg-yellow-50 rounded-xl p-4 transition-all hover:shadow-lg">
@@ -915,8 +846,8 @@ const BioSyncAdvanced = () => {
                                     style={{ width: `${biometrics.glycogenStores}%` }}
                                 />
                             </div>
-                            {biometrics.energyCooldown > 0 && (
-                                <div className="text-xs text-green-600 mt-1">Protected: {biometrics.energyCooldown}s</div>
+                            {cooldowns.energyCooldown > 0 && (
+                                <div className="text-xs text-green-600 mt-1">Protected: {cooldowns.energyCooldown}s</div>
                             )}
                         </div>
                         <div className="bg-orange-50 rounded-xl p-4 transition-all hover:shadow-lg">
@@ -926,8 +857,8 @@ const BioSyncAdvanced = () => {
                             <div className={`text-xs mt-1 ${biometrics.coreTemp > 38.0 ? 'text-red-600' : 'text-green-600'}`}>
                                 {biometrics.coreTemp > 38.0 ? '⚠️ Elevated' : '✓ Normal'}
                             </div>
-                            {biometrics.tempCooldown > 0 && (
-                                <div className="text-xs text-blue-600 mt-1">Cooling: {biometrics.tempCooldown}s</div>
+                            {cooldowns.tempCooldown > 0 && (
+                                <div className="text-xs text-blue-600 mt-1">Cooling: {cooldowns.tempCooldown}s</div>
                             )}
                         </div>
                     </div>
@@ -939,7 +870,7 @@ const BioSyncAdvanced = () => {
                             AI Recommendations
                         </h3>
                         {recommendations.length > 0 ? (
-                            <div className="space-y-3 max-h-96 overflow-y-auto">
+                            <div className="space-y-3">
                                 {recommendations.map(rec => (
                                     <div key={rec.id} className={`${rec.bgColor} rounded-lg p-3 transition-all hover:shadow-md ${rec.completed ? 'opacity-60' : ''}`}>
                                         <div className="flex items-start space-x-3">
@@ -956,9 +887,7 @@ const BioSyncAdvanced = () => {
                                                     </button>
                                                 )}
                                                 {rec.completed && (
-                                                    <div className="mt-2 text-xs text-green-600 font-semibold">
-                                                        ✅ Completed
-                                                    </div>
+                                                    <span className="text-xs text-green-600 mt-2 inline-block">✅ Completed</span>
                                                 )}
                                             </div>
                                         </div>
@@ -1000,7 +929,7 @@ const BioSyncAdvanced = () => {
                         </h3>
                         <SimpleChart data={historicalData} />
                         {isExercising && historicalData.length > 0 && (
-                            <div className="mt-4 grid grid-cols-4 gap-4 text-center">
+                            <div className="mt-4 grid grid-cols-3 gap-4 text-center">
                                 <div>
                                     <p className="text-sm text-gray-600">Avg Heart Rate</p>
                                     <p className="text-lg font-semibold text-red-600">
@@ -1014,15 +943,9 @@ const BioSyncAdvanced = () => {
                                     </p>
                                 </div>
                                 <div>
-                                    <p className="text-sm text-gray-600">Avg Hydration</p>
+                                    <p className="text-sm text-gray-600">Sweat Loss</p>
                                     <p className="text-lg font-semibold text-blue-600">
-                                        {Math.round(historicalData.reduce((sum, d) => sum + d.hydration, 0) / historicalData.length)}%
-                                    </p>
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-600">Duration</p>
-                                    <p className="text-lg font-semibold text-purple-600">
-                                        {Math.floor(exerciseDuration / 60)}:{(exerciseDuration % 60).toString().padStart(2, '0')}
+                                        {(biometrics.sweatRate * exerciseDuration / 3600).toFixed(1)}L
                                     </p>
                                 </div>
                             </div>
@@ -1036,57 +959,64 @@ const BioSyncAdvanced = () => {
                             Your Personal Stats
                         </h3>
                         <div className="space-y-3">
-                            <div className="flex justify-between p-2 hover:bg-gray-50 rounded">
-                                <span className="text-gray-600">Daily Calories:</span>
-                                <span className="font-semibold">
-                                    {Math.round((userProfile.bmr || 1680) * 1.5)} cal
-                                </span>
-                            </div>
-                            <div className="flex justify-between p-2 hover:bg-gray-50 rounded">
-                                <span className="text-gray-600">Water Needs:</span>
-                                <span className="font-semibold">
-                                    {Math.round((parseFloat(userProfile.weight) || 70) * 35)} ml/day
-                                </span>
-                            </div>
-                            <div className="flex justify-between p-2 hover:bg-gray-50 rounded">
-                                <span className="text-gray-600">Fitness Goals:</span>
-                                <span className="font-semibold text-sm">
-                                    {userProfile.fitnessGoals.slice(0, 2).join(', ') || 'General Health'}
-                                </span>
-                            </div>
-                            <div className="flex justify-between p-2 hover:bg-gray-50 rounded">
-                                <span className="text-gray-600">Exercise Status:</span>
-                                <span className={`font-semibold ${isExercising ? 'text-green-600' : 'text-gray-600'}`}>
-                                    {isExercising ? '🏃 Active' : '⏸️ Resting'}
-                                </span>
-                            </div>
-                            {userProfile.medicalConditions.length > 0 && userProfile.medicalConditions[0] !== 'None' && (
-                                <div className="flex justify-between p-2 bg-yellow-50 rounded">
-                                    <span className="text-gray-600">Conditions:</span>
-                                    <span className="font-semibold text-sm text-red-600">
-                                        {userProfile.medicalConditions.join(', ')}
-                                    </span>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </main>
-        </div>
-    );
+                            <div className="flex justify-between">
+                               <span className="text-gray-600">Daily Calories:</span>
+                               <span className="font-semibold">
+                                   {Math.round((userProfile.bmr || 1680) * 1.5)} cal
+                               </span>
+                           </div>
+                           <div className="flex justify-between">
+                               <span className="text-gray-600">Water Needs:</span>
+                               <span className="font-semibold">
+                                   {Math.round((parseFloat(userProfile.weight) || 70) * 35)} ml/day
+                               </span>
+                           </div>
+                           <div className="flex justify-between">
+                               <span className="text-gray-600">Fitness Goals:</span>
+                               <span className="font-semibold text-sm">
+                                   {userProfile.fitnessGoals.join(', ') || 'General Health'}
+                               </span>
+                           </div>
+                           <div className="flex justify-between">
+                               <span className="text-gray-600">Exercise Status:</span>
+                               <span className={`font-semibold ${isExercising ? 'text-green-600' : 'text-gray-600'}`}>
+                                   {isExercising ? '🏃 Active' : '⏸️ Resting'}
+                               </span>
+                           </div>
+                           {userProfile.medicalConditions.length > 0 && userProfile.medicalConditions[0] !== 'None' && (
+                               <div className="flex justify-between">
+                                   <span className="text-gray-600">Conditions:</span>
+                                   <span className="font-semibold text-sm text-red-600">
+                                       {userProfile.medicalConditions.join(', ')}
+                                   </span>
+                               </div>
+                           )}
+                       </div>
+                   </div>
+               </div>
+           </main>
+       </div>
+   );
 };
 
 // Add CSS for animations
 const style = document.createElement('style');
 style.textContent = `
-    @keyframes grow {
-        from { height: 0; }
-        to { height: auto; }
-    }
-    @keyframes slideIn {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-    }
+   @keyframes grow {
+       from { height: 0; }
+       to { height: auto; }
+   }
+   @keyframes slideIn {
+       from { transform: translateX(100%); opacity: 0; }
+       to { transform: translateX(0); opacity: 1; }
+   }
+   .animate-pulse {
+       animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+   }
+   @keyframes pulse {
+       0%, 100% { opacity: 1; }
+       50% { opacity: .5; }
+   }
 `;
 document.head.appendChild(style);
 
