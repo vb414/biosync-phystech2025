@@ -799,6 +799,12 @@
 
         // Function to update only the dynamic parts
         function updateDynamicElements() {
+            // Update timer display
+            const timerEl = document.getElementById('timerDisplay');
+            if (timerEl && isExercising) {
+                timerEl.textContent = `${Math.floor(exerciseDuration / 60)}:${(exerciseDuration % 60).toString().padStart(2, '0')}`;
+            }
+            
             // Update biometric displays
             const heartRateEl = document.getElementById('heartRateDisplay');
             if (heartRateEl) heartRateEl.textContent = biometrics.heartRate;
