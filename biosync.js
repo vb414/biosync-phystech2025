@@ -1095,4 +1095,47 @@ const BioSyncAdvanced = () => {
                             </div>
                             {userProfile.medicalConditions.length > 0 && userProfile.medicalConditions[0] !== 'None' && (
                                 <div className="flex justify-between p-2 bg-yellow-50 rounded">
-                                    <span className="text-gray
+                                    <span className="text-gray-600">
+                                    {userProfile.medicalConditions.length > 0 && userProfile.medicalConditions[0] !== 'None' && (
+                                <div className="flex justify-between p-2 bg-yellow-50 rounded">
+                                    <span className="text-gray-600">⚠️ Conditions:</span>
+                                    <span className="font-semibold text-sm text-red-600">
+                                        {userProfile.medicalConditions.filter(c => c !== 'None').join(', ')}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    );
+};
+
+// Add CSS for animations
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes grow {
+        from { height: 0; }
+        to { height: auto; }
+    }
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    .animate-pulse {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: .5; }
+    }
+    .notification {
+        animation: slideIn 0.3s ease-out;
+    }
+`;
+document.head.appendChild(style);
+
+// Render the app
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<BioSyncAdvanced />);
