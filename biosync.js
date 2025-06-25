@@ -629,3 +629,511 @@ const BioSyncAdvanced = () => {
                                         max="300"
                                         step="0.1"
                                         className="w-full px-4 py-2 border
+                                        type="number"
+                                        required
+                                        min="30"
+                                        max="300"
+                                        step="0.1"
+                                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        value={userProfile.weight}
+                                        onChange={(e) => setUserProfile({...userProfile, weight: e.target.value})}
+                                        placeholder="70"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Height (cm)</label>
+                                    <input
+                                        type="number"
+                                        required
+                                        min="100"
+                                        max="250"
+                                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        value={userProfile.height}
+                                        onChange={(e) => setUserProfile({...userProfile, height: e.target.value})}
+                                        placeholder="175"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Activity Level</label>
+                                <select
+                                    required
+                                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    value={userProfile.activityLevel}
+                                    onChange={(e) => setUserProfile({...userProfile, activityLevel: e.target.value})}
+                                >
+                                    <option value="">Select activity level</option>
+                                    <option value="sedentary">Sedentary (little to no exercise)</option>
+                                    <option value="light">Light (exercise 1-3 days/week)</option>
+                                    <option value="moderate">Moderate (exercise 3-5 days/week)</option>
+                                    <option value="active">Active (exercise 6-7 days/week)</option>
+                                    <option value="athlete">Athlete (intense training)</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Fitness Goals</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {['Weight Loss', 'Muscle Gain', 'Endurance', 'General Health', 'Performance', 'Recovery'].map(goal => (
+                                        <label key={goal} className="flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                className="mr-2"
+                                                checked={userProfile.fitnessGoals.includes(goal)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setUserProfile({...userProfile, fitnessGoals: [...userProfile.fitnessGoals, goal]});
+                                                    } else {
+                                                        setUserProfile({...userProfile, fitnessGoals: userProfile.fitnessGoals.filter(g => g !== goal)});
+                                                    }
+                                                }}
+                                            />
+                                            {goal}
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Medical Conditions</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {['None', 'Diabetes', 'Hypertension', 'Heart Disease', 'Asthma', 'Thyroid'].map(condition => (
+                                        <label key={condition} className="flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                className="mr-2"
+                                                checked={userProfile.medicalConditions.includes(condition)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setUserProfile({...userProfile, medicalConditions: [...userProfile.medicalConditions, condition]});
+                                                    } else {
+                                                        setUserProfile({...userProfile, medicalConditions: userProfile.medicalConditions.filter(c => c !== condition)});
+                                                    }
+                                                }}
+                                            />
+                                            {condition}
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {userProfile.bmi && (
+                                <div className="bg-blue-50 rounded-lg p-4">
+                                    <h3 className="font-semibold text-gray-800 mb-2">📊 Your Calculated Metrics:</h3>
+                                    <div className="grid grid-cols-3 gap-4 text-sm">
+                                        <div><span className="text-gray-600">BMI:</span> <span className="font-semibold ml-2">{userProfile.bmi}</span></div>
+                                        <div><span className="text-gray-600">BMR:</span> <span className="font-semibold ml-2">{userProfile.bmr} cal/day</span></div>
+                                        <div><span className="text-gray-600">Max HR:</span> <span className="font-semibold ml-2">{userProfile.maxHeartRate} bpm</span></div>
+                                    </div>
+                                </div>
+                            )}
+
+                            <button
+                                type="submit"
+                                className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold py-3 rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all"
+                            >
+                                Continue to Medical Information
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // MEDICAL REPORT UPLOAD SCREEN
+    if (currentStep === 'medical') {
+        return (
+            <div className="min-h-screen bg-gray-50 py-8">
+                <div className="max-w-2xl mx-auto px-4">
+                    <div className="bg-white rounded-2xl shadow-xl p-8">
+                        <h2 className="text-3xl font-bold text-gray-800 mb-6">Medical Information</h2>
+                        <p className="text-gray-600 mb-8">
+                            Upload your recent medical report for personalized nutrition recommendations. This is optional but helps us provide more accurate guidance.
+                        </p>
+
+                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6 hover:border-blue-400 transition-colors">
+                            <Upload className="text-5xl mx-auto mb-4" />
+                            <h3 className="text-lg font-semibold mb-2">Upload Medical Report</h3>
+                            <p className="text-sm text-gray-600 mb-4">PDF, JPG, or PNG (Max 10MB)</p>
+                            <input
+                                type="file"
+                                accept=".pdf,.jpg,.jpeg,.png"
+                                onChange={handleMedicalReportUpload}
+                                className="hidden"
+                                id="medical-upload"
+                            />
+                            <label
+                                htmlFor="medical-upload"
+                                className="inline-block bg-blue-500 text-white px-6 py-2 rounded-lg cursor-pointer hover:bg-blue-600 transition-all"
+                            >
+                                Choose File
+                            </label>
+                        </div>
+
+                        {medicalReport && (
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                                <div className="flex items-center">
+                                    <CheckCircle2 className="text-2xl mr-3" />
+                                    <div>
+                                        <p className="font-semibold text-green-800">File Uploaded Successfully</p>
+                                        <p className="text-sm text-green-600">{medicalReport.name}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {reportAnalysis && (
+                            <div className="bg-blue-50 rounded-lg p-6 mb-6">
+                                <h3 className="font-semibold text-lg mb-4">🔬 Medical Report Analysis</h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="flex justify-between bg-white p-3 rounded">
+                                        <span>Glucose:</span>
+                                        <span className={`font-semibold ${reportAnalysis.glucose === 'normal' ? 'text-green-600' : 'text-yellow-600'}`}>
+                                            {reportAnalysis.glucose}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between bg-white p-3 rounded">
+                                        <span>Cholesterol:</span>
+                                        <span className={`font-semibold ${reportAnalysis.cholesterol === 'normal' ? 'text-green-600' : 'text-yellow-600'}`}>
+                                            {reportAnalysis.cholesterol}
+                                        </span>
+                                    </div>
+                                </div>
+                                {reportAnalysis.recommendations && (
+                                    <div className="mt-4">
+                                        <h4 className="font-semibold mb-2">Recommendations:</h4>
+                                        <ul className="list-disc list-inside space-y-1">
+                                            {reportAnalysis.recommendations.map((rec, i) => (
+                                                <li key={i} className="text-sm text-gray-700">{rec}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                            <div className="flex items-start">
+                                <Shield className="text-2xl mr-3 mt-1" />
+                                <div>
+                                    <h4 className="font-semibold mb-1">Your Privacy Matters</h4>
+                                    <p className="text-sm text-gray-600">
+                                        Your medical data is processed locally and never stored on our servers.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex space-x-4">
+                            <button
+                                onClick={() => setCurrentStep('profile')}
+                                className="flex-1 bg-gray-200 text-gray-800 font-semibold py-3 rounded-lg hover:bg-gray-300 transition-colors"
+                            >
+                                Back
+                            </button>
+                            <button
+                                onClick={() => setCurrentStep('dashboard')}
+                                className="flex-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold py-3 rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all"
+                            >
+                                {medicalReport ? 'Start BioSync' : 'Skip & Continue'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+// MAIN DASHBOARD
+    return (
+        <div className="min-h-screen bg-gray-50">
+            <header className="bg-white shadow-sm border-b">
+                <div className="max-w-7xl mx-auto px-4 py-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                            <Brain className="text-3xl" />
+                            <div>
+                                <h1 className="text-2xl font-bold">BioSync</h1>
+                                <p className="text-sm text-gray-600">Welcome, {userProfile.name}</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center space-x-4">
+                            <select
+                                value={exerciseType}
+                                onChange={(e) => setExerciseType(e.target.value)}
+                                className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                                disabled={isExercising}
+                            >
+                                <option value="running">🏃 Running</option>
+                                <option value="cycling">🚴 Cycling</option>
+                                <option value="swimming">🏊 Swimming</option>
+                                <option value="strength">💪 Strength</option>
+                                <option value="yoga">🧘 Yoga</option>
+                            </select>
+                            <button
+                                onClick={toggleExercise}
+                                className={`px-6 py-2 rounded-lg font-semibold text-white transition-colors ${
+                                    isExercising 
+                                        ? 'bg-red-500 hover:bg-red-600' 
+                                        : 'bg-green-500 hover:bg-green-600'
+                                }`}
+                            >
+                                {isExercising ? '⏹️ Stop' : '▶️ Start'}
+                            </button>
+                            {isExercising && (
+                                <div className="font-mono text-lg font-semibold text-blue-600 animate-pulse">
+                                    {formatDuration(exerciseDuration)}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            {/* User Stats Bar */}
+            <div className="bg-blue-50 border-b px-4 py-3">
+                <div className="max-w-7xl mx-auto flex items-center justify-between text-sm">
+                    <div className="flex items-center space-x-6">
+                        <span><strong>Age:</strong> {userProfile.age}</span>
+                        <span><strong>BMI:</strong> {userProfile.bmi}</span>
+                        <span><strong>Activity:</strong> {userProfile.activityLevel}</span>
+                        <span><strong>Max HR:</strong> {userProfile.maxHeartRate} bpm</span>
+                        {isExercising && (
+                            <span className="text-green-600 font-semibold animate-pulse">
+                                🟢 Exercise Active
+                            </span>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Dashboard */}
+            <main className="max-w-7xl mx-auto px-4 py-8">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Metrics */}
+                    <div className="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-red-50 rounded-xl p-4 transition-all hover:shadow-lg">
+                            <Heart className="text-2xl mb-2" />
+                            <div className="text-2xl font-bold">{biometrics.heartRate}</div>
+                            <div className="text-sm text-gray-600">Heart Rate</div>
+                            <div className={`text-xs mt-1 px-2 py-1 rounded-full inline-block ${getZoneColor(biometrics.heartRateZone)}`}>
+                                {biometrics.heartRateZone}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                                Target: {Math.round((userProfile.maxHeartRate || 190) * 0.7)}-{Math.round((userProfile.maxHeartRate || 190) * 0.85)}
+                            </div>
+                        </div>
+                        <div className="bg-blue-50 rounded-xl p-4 transition-all hover:shadow-lg">
+                            <Droplets className="text-2xl mb-2" />
+                            <div className="text-2xl font-bold">{Math.round(biometrics.hydrationLevel)}%</div>
+                            <div className="text-sm text-gray-600">Hydration</div>
+                            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                <div 
+                                    className="bg-blue-500 h-2 rounded-full transition-all duration-500"
+                                    style={{ width: `${biometrics.hydrationLevel}%` }}
+                                />
+                            </div>
+                            {cooldowns.hydrationCooldown > 0 && (
+                                <div className="text-xs text-green-600 mt-1">Protected: {cooldowns.hydrationCooldown}s</div>
+                            )}
+                        </div>
+                        <div className="bg-yellow-50 rounded-xl p-4 transition-all hover:shadow-lg">
+                            <Zap className="text-2xl mb-2" />
+                            <div className="text-2xl font-bold">{Math.round(biometrics.glycogenStores)}%</div>
+                            <div className="text-sm text-gray-600">Glycogen</div>
+                            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                <div 
+                                    className="bg-yellow-500 h-2 rounded-full transition-all duration-500"
+                                    style={{ width: `${biometrics.glycogenStores}%` }}
+                                />
+                            </div>
+                            {cooldowns.energyCooldown > 0 && (
+                                <div className="text-xs text-green-600 mt-1">Protected: {cooldowns.energyCooldown}s</div>
+                            )}
+                        </div>
+                        <div className="bg-orange-50 rounded-xl p-4 transition-all hover:shadow-lg">
+                            <Thermometer className="text-2xl mb-2" />
+                            <div className="text-2xl font-bold">{biometrics.coreTemp.toFixed(1)}°C</div>
+                            <div className="text-sm text-gray-600">Core Temp</div>
+                            <div className={`text-xs mt-1 ${biometrics.coreTemp > 38.0 ? 'text-red-600' : 'text-green-600'}`}>
+                                {biometrics.coreTemp > 38.0 ? '⚠️ Elevated' : '✓ Normal'}
+                            </div>
+                            {cooldowns.tempCooldown > 0 && (
+                                <div className="text-xs text-blue-600 mt-1">Cooling: {cooldowns.tempCooldown}s</div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* AI Recommendations */}
+                    <div className="bg-white rounded-xl shadow-lg p-6">
+                        <h3 className="text-lg font-semibold mb-4 flex items-center">
+                            <Brain className="mr-2" />
+                            AI Recommendations
+                        </h3>
+                        {recommendations.length > 0 ? (
+                            <div className="space-y-3 max-h-96 overflow-y-auto">
+                                {recommendations.map(rec => (
+                                    <div key={rec.id} className={`${rec.bgColor} rounded-lg p-3 transition-all hover:shadow-md ${rec.completed ? 'opacity-60' : ''}`}>
+                                        <div className="flex items-start space-x-3">
+                                            <rec.icon className="text-xl flex-shrink-0 mt-0.5" />
+                                            <div className="flex-1">
+                                                <h4 className={`font-semibold text-sm ${rec.completed ? 'line-through' : ''}`}>{rec.title}</h4>
+                                                <p className="text-xs text-gray-700 mt-1">{rec.message}</p>
+                                                {rec.actionable && !rec.completed && (
+                                                    <button
+                                                        onClick={() => completeRecommendation(rec.id)}
+                                                        className="mt-2 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-all"
+                                                    >
+                                                        ✓ Done
+                                                    </button>
+                                                )}
+                                                {rec.completed && (
+                                                    <div className="mt-2 text-xs text-green-600 font-semibold">
+                                                        ✅ Completed
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-8">
+                                <Activity className="text-4xl mx-auto mb-2 text-gray-400" />
+                                <p className="text-gray-500">
+                                    {isExercising 
+                                        ? 'AI monitoring your performance...' 
+                                        : 'Start exercising to receive AI recommendations'}
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Medical-based recommendations */}
+                        {reportAnalysis && reportAnalysis.recommendations && (
+                            <div className="mt-4 pt-4 border-t">
+                                <h4 className="font-semibold text-sm mb-2">📋 From your medical report:</h4>
+                                <ul className="text-xs text-gray-600 space-y-1">
+                                    {reportAnalysis.recommendations.map((rec, i) => (
+                                        <li key={i} className="flex items-start">
+                                            <span className="mr-2">•</span>
+                                            <span>{rec}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Performance Chart */}
+                    <div className="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">
+                        <h3 className="text-lg font-semibold mb-4 flex items-center">
+                            <BarChart3 className="mr-2" />
+                            Real-Time Performance Tracking
+                        </h3>
+                        <SimpleChart data={historicalData} />
+                        {isExercising && historicalData.length > 0 && (
+                            <div className="mt-4 grid grid-cols-4 gap-4 text-center">
+                                <div className="bg-red-50 p-3 rounded-lg">
+                                    <p className="text-sm text-gray-600">Avg Heart Rate</p>
+                                    <p className="text-lg font-semibold text-red-600">
+                                        {Math.round(historicalData.reduce((sum, d) => sum + d.heartRate, 0) / historicalData.length)}
+                                    </p>
+                                </div>
+                                <div className="bg-orange-50 p-3 rounded-lg">
+                                    <p className="text-sm text-gray-600">Calories Burned</p>
+                                    <p className="text-lg font-semibold text-orange-600">
+                                        {Math.round(exerciseDuration * 0.1 * (parseFloat(userProfile.weight) || 70) / 60)}
+                                    </p>
+                                </div>
+                                <div className="bg-blue-50 p-3 rounded-lg">
+                                    <p className="text-sm text-gray-600">Avg Hydration</p>
+                                    <p className="text-lg font-semibold text-blue-600">
+                                        {Math.round(historicalData.reduce((sum, d) => sum + d.hydration, 0) / historicalData.length)}%
+                                    </p>
+                                </div>
+                                <div className="bg-purple-50 p-3 rounded-lg">
+                                    <p className="text-sm text-gray-600">Sweat Loss</p>
+                                    <p className="text-lg font-semibold text-purple-600">
+                                        {(biometrics.sweatRate * exerciseDuration / 3600).toFixed(1)}L
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Personal Stats */}
+                    <div className="bg-white rounded-xl shadow-lg p-6">
+                        <h3 className="text-lg font-semibold mb-4 flex items-center">
+                            <User className="mr-2" />
+                            Your Personal Stats
+                        </h3>
+                        <div className="space-y-3">
+                            <div className="flex justify-between p-2 hover:bg-gray-50 rounded">
+                                <span className="text-gray-600">🔥 Daily Calories:</span>
+                                <span className="font-semibold">
+                                    {Math.round((userProfile.bmr || 1680) * 1.5)} cal
+                                </span>
+                            </div>
+                            <div className="flex justify-between p-2 hover:bg-gray-50 rounded">
+                                <span className="text-gray-600">💧 Water Needs:</span>
+                                <span className="font-semibold">
+                                    {Math.round((parseFloat(userProfile.weight) || 70) * 35)} ml/day
+                                </span>
+                            </div>
+                            <div className="flex justify-between p-2 hover:bg-gray-50 rounded">
+                                <span className="text-gray-600">🎯 Fitness Goals:</span>
+                                <span className="font-semibold text-sm">
+                                    {userProfile.fitnessGoals.slice(0, 2).join(', ') || 'General Health'}
+                                </span>
+                            </div>
+                            <div className="flex justify-between p-2 hover:bg-gray-50 rounded">
+                                <span className="text-gray-600">📈 Exercise Status:</span>
+                                <span className={`font-semibold ${isExercising ? 'text-green-600' : 'text-gray-600'}`}>
+                                    {isExercising ? '🏃 Active' : '⏸️ Resting'}
+                                </span>
+                            </div>
+                            {userProfile.medicalConditions.length > 0 && userProfile.medicalConditions[0] !== 'None' && (
+                                <div className="flex justify-between p-2 bg-yellow-50 rounded">
+                                    <span className="text-gray-600">⚠️ Conditions:</span>
+                                    <span className="font-semibold text-sm text-red-600">
+                                        {userProfile.medicalConditions.join(', ')}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    );
+};
+
+// Add CSS for animations
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes grow {
+        from { height: 0; }
+        to { height: auto; }
+    }
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    .animate-pulse {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: .5; }
+    }
+    .notification {
+        animation: slideIn 0.3s ease-out;
+    }
+`;
+document.head.appendChild(style);
+
+// Render the app
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<BioSyncAdvanced />);
