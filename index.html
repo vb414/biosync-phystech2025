@@ -69,7 +69,8 @@
         let historicalData = [];
         let medicalReport = null;
         let reportAnalysis = null;
-        let completedRecommendations = {}; // Track completed recommendations by timestamp
+        let completedRecommendations = {}; // Track completed recommendations
+        let activeRecommendations = {}; // Track active recommendations to prevent duplicates
 
         // Helper functions
         function calculateBMI() {
@@ -155,22 +156,36 @@
             updateRecommendations();
         }
 
-        // Enhanced updateRecommendations with repeated alerts
+        // FIXED updateRecommendations - preserve existing recommendations
         function updateRecommendations() {
-            recommendations = [];
             const exerciseType = document.getElementById('exerciseType') ? document.getElementById('exerciseType').value : 'running';
             
-            // Always show status
-            recommendations.push({
+            // Start with status recommendation
+            const newRecommendations = [{
                 id: 'status',
+                type: 'status',
                 title: `${userProfile.name}'s AI Analysis`,
                 message: `Monitoring your ${exerciseType} session - ${Math.floor(exerciseDuration/60)}:${(exerciseDuration%60).toString().padStart(2,'0')} elapsed. Heart rate in ${biometrics.heartRateZone} zone.`,
                 bgColor: 'bg-blue-50',
-                actionable: false
+                actionable: false,
+                completed: false
+            }];
+
+            // Add existing active recommendations
+            Object.values(activeRecommendations).forEach(rec => {
+                if (!rec.completed) {
+                    newRecommendations.push(rec);
+                }
             });
 
-            // HYDRATION - Show again after 60 seconds if still low
-            if (biometrics.hydrationLevel < 90 && (exerciseDuration - biometrics.lastHydrationAlert) > 60) {
+            // Add completed recommendations
+            Object.values(completedRecommendations).forEach(rec => {
+                newRecommendations.push(rec);
+            });
+
+            // Check for new recommendations
+            // HYDRATION - Only add if no active hydration recommendation
+            if (!activeRecommendations.hydration && biometrics.hydrationLevel < 90 && (exerciseDuration - biometrics.lastHydrationAlert) > 60) {
                 const bodyWeight = parseFloat(userProfile.weight) || 70;
                 const waterNeeded = Math.round((100 - biometrics.hydrationLevel) * bodyWeight * 0.015);
                 const exerciseMultiplier = {
@@ -182,71 +197,84 @@
                 if (biometrics.hydrationLevel < 70) urgency = 'URGENT:';
                 else if (biometrics.hydrationLevel < 80) urgency = 'Important:';
                 
-                recommendations.push({
+                const hydrationRec = {
                     id: `hydration_${exerciseDuration}`,
                     type: 'hydration',
                     title: `${urgency} Hydration Alert`,
                     message: `${userProfile.name}, drink ${adjustedWater}ml water now. As a ${userProfile.activityLevel} athlete (${bodyWeight}kg), your body needs extra hydration during ${exerciseType}.`,
                     bgColor: biometrics.hydrationLevel < 70 ? 'bg-red-50' : 'bg-blue-50',
                     actionable: true,
-                    value: adjustedWater
-                });
+                    value: adjustedWater,
+                    completed: false
+                };
+                
+                activeRecommendations.hydration = hydrationRec;
+                newRecommendations.push(hydrationRec);
                 biometrics.lastHydrationAlert = exerciseDuration;
             }
 
-            // ENERGY - Show again after 90 seconds if still low
-            if (biometrics.glycogenStores < 70 && (exerciseDuration - biometrics.lastEnergyAlert) > 90) {
+            // ENERGY - Only add if no active energy recommendation
+            if (!activeRecommendations.energy && biometrics.glycogenStores < 70 && (exerciseDuration - biometrics.lastEnergyAlert) > 90) {
                 const baseCarbs = userProfile.gender === 'female' ? 25 : 30;
                 const intensityMultiplier = {
                     running: 1.2, cycling: 1.0, swimming: 1.1, strength: 0.8, yoga: 0.5
                 }[exerciseType];
                 const recommendedCarbs = Math.round(baseCarbs * intensityMultiplier);
                 
-                recommendations.push({
+                const energyRec = {
                     id: `energy_${exerciseDuration}`,
                     type: 'energy',
                     title: `Energy Management for ${userProfile.gender.charAt(0).toUpperCase() + userProfile.gender.slice(1)} Athletes`,
                     message: `${userProfile.name}, consume ${recommendedCarbs}g quick carbs (banana, sports drink). ${userProfile.gender === 'female' ? 'Women' : 'Men'} typically need this amount during ${exerciseType} sessions lasting ${Math.floor(exerciseDuration/60)}+ minutes.`,
                     bgColor: 'bg-yellow-50',
                     actionable: true,
-                    value: recommendedCarbs
-                });
+                    value: recommendedCarbs,
+                    completed: false
+                };
+                
+                activeRecommendations.energy = energyRec;
+                newRecommendations.push(energyRec);
                 biometrics.lastEnergyAlert = exerciseDuration;
             }
 
-            // TEMPERATURE - Show again after 120 seconds if still high
-            if (biometrics.coreTemp > 37.8 && (exerciseDuration - biometrics.lastTempAlert) > 120) {
+            // TEMPERATURE - Only add if no active cooling recommendation
+            if (!activeRecommendations.cooling && biometrics.coreTemp > 37.8 && (exerciseDuration - biometrics.lastTempAlert) > 120) {
                 const ageWarning = userProfile.age > 50 ? ' Especially important at your age.' : '';
-                recommendations.push({
+                const coolingRec = {
                     id: `temp_${exerciseDuration}`,
                     type: 'cooling',
                     title: `Temperature Safety Alert`,
                     message: `${userProfile.name}, core temp elevated to ${biometrics.coreTemp.toFixed(1)}°C. Take a 2-minute cool-down break.${ageWarning}`,
                     bgColor: 'bg-red-50',
                     actionable: true,
-                    value: 2
-                });
+                    value: 2,
+                    completed: false
+                };
+                
+                activeRecommendations.cooling = coolingRec;
+                newRecommendations.push(coolingRec);
                 biometrics.lastTempAlert = exerciseDuration;
             }
 
             // Heart rate recommendations (non-actionable)
-            if (biometrics.heartRateZone === 'peak') {
+            if (biometrics.heartRateZone === 'peak' && !activeRecommendations.hrPeak) {
                 const ageGroup = userProfile.age < 25 ? 'young athlete' : userProfile.age > 50 ? 'experienced athlete' : 'athlete';
-                recommendations.push({
+                const hrRec = {
                     id: 'hr-peak',
+                    type: 'hr-peak',
                     title: `Peak Zone Alert for ${userProfile.age}-year-old`,
                     message: `${userProfile.name}, as a ${ageGroup}, reduce intensity to 70-85% max HR (${Math.round(userProfile.maxHeartRate * 0.7)}-${Math.round(userProfile.maxHeartRate * 0.85)} bpm) for optimal ${exerciseType} performance.`,
                     bgColor: 'bg-red-50',
-                    actionable: false
-                });
+                    actionable: false,
+                    completed: false
+                };
+                activeRecommendations.hrPeak = hrRec;
+                newRecommendations.push(hrRec);
+            } else if (biometrics.heartRateZone !== 'peak' && activeRecommendations.hrPeak) {
+                delete activeRecommendations.hrPeak;
             }
 
-            // Add completed recommendations back
-            Object.keys(completedRecommendations).forEach(key => {
-                if (completedRecommendations[key]) {
-                    recommendations.push(completedRecommendations[key]);
-                }
-            });
+            recommendations = newRecommendations;
         }
 
         // Enhanced notification function
@@ -266,37 +294,35 @@
             }, 3000);
         }
 
-        // Enhanced complete recommendation function
+        // FIXED complete recommendation function
         function completeRecommendation(recId) {
             const rec = recommendations.find(r => r.id === recId);
             if (!rec || !rec.actionable) return;
             
-            // Mark as completed and store it
+            // Mark as completed
             rec.completed = true;
             completedRecommendations[recId] = rec;
             
-            switch(rec.type) {
-                case 'hydration':
-                    // Increase hydration and set cooldown
-                    biometrics.hydrationLevel = Math.min(100, biometrics.hydrationLevel + 20);
-                    biometrics.hydrationCooldown = 45; // 45 seconds of no decrease
-                    showNotification('💧 Hydration restored! You\'ll maintain this level for a while.');
-                    break;
-                    
-                case 'energy':
-                    // Increase energy and set cooldown
-                    biometrics.glycogenStores = Math.min(100, biometrics.glycogenStores + 25);
-                    biometrics.energyCooldown = 60; // 60 seconds of no decrease
-                    showNotification('⚡ Energy boosted! Your glycogen stores are replenished.');
-                    break;
-                    
-                case 'cooling':
-                    // Cool down temperature
-                    biometrics.coreTemp = Math.max(37.0, biometrics.coreTemp - 0.3);
-                    biometrics.heartRate = Math.max(72, biometrics.heartRate - 10);
-                    biometrics.tempCooldown = 30; // 30 seconds of cooling
-                    showNotification('🌡️ Cooling down! Your body temperature is normalizing.');
-                    break;
+            // Remove from active recommendations
+            if (rec.type === 'hydration') {
+                delete activeRecommendations.hydration;
+                // Increase hydration and set cooldown
+                biometrics.hydrationLevel = Math.min(100, biometrics.hydrationLevel + 20);
+                biometrics.hydrationCooldown = 45; // 45 seconds of no decrease
+                showNotification('💧 Hydration restored! You\'ll maintain this level for a while.');
+            } else if (rec.type === 'energy') {
+                delete activeRecommendations.energy;
+                // Increase energy and set cooldown
+                biometrics.glycogenStores = Math.min(100, biometrics.glycogenStores + 25);
+                biometrics.energyCooldown = 60; // 60 seconds of no decrease
+                showNotification('⚡ Energy boosted! Your glycogen stores are replenished.');
+            } else if (rec.type === 'cooling') {
+                delete activeRecommendations.cooling;
+                // Cool down temperature
+                biometrics.coreTemp = Math.max(37.0, biometrics.coreTemp - 0.3);
+                biometrics.heartRate = Math.max(72, biometrics.heartRate - 10);
+                biometrics.tempCooldown = 30; // 30 seconds of cooling
+                showNotification('🌡️ Cooling down! Your body temperature is normalizing.');
             }
             
             updateDynamicElements();
@@ -664,7 +690,7 @@
                                     <button onclick="toggleExercise()" class="px-6 py-2 rounded-lg font-semibold text-white transition-all ${isExercising ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}">
                                         ${isExercising ? '⏹️ Stop' : '▶️ Start'}
                                     </button>
-                                    ${isExercising ? `<div class="font-mono text-lg font-bold text-blue-600 animate-pulse">${Math.floor(exerciseDuration / 60)}:${(exerciseDuration % 60).toString().padStart(2, '0')}</div>` : ''}
+                                    ${isExercising ? `<div class="font-mono text-lg font-bold text-blue-600 animate-pulse" id="timerDisplay">${Math.floor(exerciseDuration / 60)}:${(exerciseDuration % 60).toString().padStart(2, '0')}</div>` : ''}
                                 </div>
                             </div>
                         </div>
@@ -799,7 +825,7 @@
 
         // Function to update only the dynamic parts
         function updateDynamicElements() {
-            // Update timer display
+            // Update timer display - FIXED
             const timerEl = document.getElementById('timerDisplay');
             if (timerEl && isExercising) {
                 timerEl.textContent = `${Math.floor(exerciseDuration / 60)}:${(exerciseDuration % 60).toString().padStart(2, '0')}`;
@@ -1038,7 +1064,7 @@
             `;
         }
 
-        // Toggle exercise function
+        // FIXED Toggle exercise function
         function toggleExercise() {
             if (!isExercising) {
                 // Start exercise
@@ -1047,6 +1073,7 @@
                 historicalData = [];
                 recommendations = [];
                 completedRecommendations = {};
+                activeRecommendations = {};
                 
                 // Reset alert timings
                 biometrics.lastHydrationAlert = 0;
@@ -1084,6 +1111,7 @@
                 };
                 recommendations = [];
                 completedRecommendations = {};
+                activeRecommendations = {};
                 
                 renderDashboard();
             }
@@ -1093,5 +1121,11 @@
         showWelcome();
         
     </script>
+
+    <!-- Include React dependencies and biosync.js -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script type="text/babel" src="biosync.js"></script>
 </body>
 </html>
