@@ -1,4 +1,4 @@
-const { useState, useEffect, useRef, useCallback } = React;
+const { useState, useEffect, useRef } = React;
 
 // Icon components
 const Heart = ({ className = "" }) => <span className={className}>❤️</span>;
@@ -105,6 +105,7 @@ const BioSyncAdvanced = () => {
     const [isExercising, setIsExercising] = useState(false);
     const [exerciseType, setExerciseType] = useState('running');
     const [exerciseDuration, setExerciseDuration] = useState(0);
+    const [, forceUpdate] = useState(0); // Force re-render hack
     
     // User profile state
     const [userProfile, setUserProfile] = useState({
@@ -156,7 +157,6 @@ const BioSyncAdvanced = () => {
     const [completedRecommendations, setCompletedRecommendations] = useState({});
     const [historicalData, setHistoricalData] = useState([]);
     const intervalRef = useRef(null);
-    const lastUpdateRef = useRef(0);
 
     // Calculate BMI and BMR when profile changes
     useEffect(() => {
@@ -184,112 +184,117 @@ const BioSyncAdvanced = () => {
         }
     }, [userProfile.weight, userProfile.height, userProfile.age, userProfile.gender]);
 
-   // FIXED Exercise timer - Simple approach that forces re-render
+    // FIXED Exercise timer with force update
     useEffect(() => {
-        let interval = null;
-        
         if (isExercising) {
-            interval = setInterval(() => {
-                setExerciseDuration(prevDuration => prevDuration + 1);
+            intervalRef.current = setInterval(() => {
+                setExerciseDuration(prev => prev + 1);
+                forceUpdate(n => n + 1); // Force component re-render
             }, 1000);
-        } else if (!isExercising && exerciseDuration !== 0) {
-            setExerciseDuration(0);
+        } else {
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+            }
         }
         
         return () => {
-            if (interval) clearInterval(interval);
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+            }
         };
     }, [isExercising]);
 
-    // Update other metrics when duration changes
+    // Update biometrics when duration changes
     useEffect(() => {
         if (isExercising && exerciseDuration > 0) {
-            // Update all biometrics
-            setBiometrics(prev => {
-                const intensityMultiplier = {
-                    running: 2.2, cycling: 1.8, swimming: 2.0, strength: 1.5, yoga: 1.2
-                }[exerciseType] || 1.5;
-
-                const baseHR = userProfile.gender === 'male' ? 70 : 75;
-                const maxHR = userProfile.maxHeartRate || 190;
-                const targetHR = Math.min(baseHR + (exerciseDuration * intensityMultiplier * 0.3), maxHR * 0.85);
-                const newHR = prev.heartRate + (targetHR - prev.heartRate) * 0.1;
-
-                const hrPercentage = ((newHR - baseHR) / (maxHR - baseHR)) * 100;
-                let zone = 'rest';
-                if (hrPercentage > 80) zone = 'peak';
-                else if (hrPercentage > 70) zone = 'cardio';
-                else if (hrPercentage > 60) zone = 'aerobic';
-                else if (hrPercentage > 50) zone = 'fat-burn';
-                else if (hrPercentage > 0) zone = 'warm-up';
-
-                const intensityFactor = Math.max(hrPercentage / 100, 0);
-                const bodyWeightFactor = (parseFloat(userProfile.weight) || 70) / 70;
-                const newSweatRate = 0.5 * intensityFactor * bodyWeightFactor;
-                
-                let newHydration = prev.hydrationLevel;
-                if (cooldowns.hydrationCooldown === 0) {
-                    newHydration = Math.max(prev.hydrationLevel - (newSweatRate * 0.5), 0);
-                }
-                
-                let newGlycogen = prev.glycogenStores;
-                if (cooldowns.energyCooldown === 0) {
-                    newGlycogen = Math.max(prev.glycogenStores - (intensityFactor * 0.3), 0);
-                }
-                
-                let newCoreTemp = prev.coreTemp;
-                if (cooldowns.tempCooldown === 0) {
-                    newCoreTemp = Math.min(prev.coreTemp + intensityFactor * 0.015, 39.5);
-                } else {
-                    newCoreTemp = Math.max(prev.coreTemp - 0.02, 37.0);
-                }
-
-                return {
-                    ...prev,
-                    heartRate: Math.round(newHR),
-                    heartRateZone: zone,
-                    sweatRate: newSweatRate,
-                    coreTemp: newCoreTemp,
-                    hydrationLevel: newHydration,
-                    glycogenStores: newGlycogen
-                };
-            });
-
-            // Update cooldowns
-            setCooldowns(prev => ({
-                hydrationCooldown: Math.max(prev.hydrationCooldown - 1, 0),
-                energyCooldown: Math.max(prev.energyCooldown - 1, 0),
-                tempCooldown: Math.max(prev.tempCooldown - 1, 0)
-            }));
-
-            // Update historical data
-            setHistoricalData(prev => {
-                const newEntry = {
-                    time: exerciseDuration,
-                    heartRate: biometrics.heartRate,
-                    hydration: Math.round(biometrics.hydrationLevel),
-                    glycogen: Math.round(biometrics.glycogenStores),
-                    fatigue: Math.round(biometrics.fatigue || 0)
-                };
-                return [...prev.slice(-29), newEntry];
-            });
-
-            // Generate recommendations
-            generateRecommendations(exerciseDuration);
+            updateBiometrics();
+            updateHistoricalData();
         }
-    }, [exerciseDuration, isExercising, exerciseType, userProfile, cooldowns, biometrics]);
+    }, [exerciseDuration, isExercising]);
 
-    // Enhanced generateRecommendations with duration parameter
-    const generateRecommendations = (duration) => {
+    // Update recommendations separately to prevent them from disappearing
+    useEffect(() => {
+        if (isExercising) {
+            generateRecommendations();
+        }
+    }, [exerciseDuration, biometrics, isExercising]);
+
+    // Enhanced updateBiometrics function
+    const updateBiometrics = () => {
+        setBiometrics(prev => {
+            const intensityMultiplier = {
+                running: 2.2, cycling: 1.8, swimming: 2.0, strength: 1.5, yoga: 1.2
+            }[exerciseType] || 1.5;
+
+            const baseHR = userProfile.gender === 'male' ? 70 : 75;
+            const maxHR = userProfile.maxHeartRate || 190;
+            const targetHR = Math.min(baseHR + (exerciseDuration * intensityMultiplier * 0.3), maxHR * 0.85);
+            const newHR = prev.heartRate + (targetHR - prev.heartRate) * 0.1;
+
+            const hrPercentage = ((newHR - baseHR) / (maxHR - baseHR)) * 100;
+            let zone = 'rest';
+            if (hrPercentage > 80) zone = 'peak';
+            else if (hrPercentage > 70) zone = 'cardio';
+            else if (hrPercentage > 60) zone = 'aerobic';
+            else if (hrPercentage > 50) zone = 'fat-burn';
+            else if (hrPercentage > 0) zone = 'warm-up';
+
+            const intensityFactor = Math.max(hrPercentage / 100, 0);
+            const bodyWeightFactor = (parseFloat(userProfile.weight) || 70) / 70;
+            const newSweatRate = 0.5 * intensityFactor * bodyWeightFactor;
+            
+            // Only decrease if not in cooldown
+            let newHydration = prev.hydrationLevel;
+            if (cooldowns.hydrationCooldown === 0) {
+                newHydration = Math.max(prev.hydrationLevel - (newSweatRate * 0.5), 0);
+            }
+            
+            let newGlycogen = prev.glycogenStores;
+            if (cooldowns.energyCooldown === 0) {
+                newGlycogen = Math.max(prev.glycogenStores - (intensityFactor * 0.3), 0);
+            }
+            
+            let newCoreTemp = prev.coreTemp;
+            if (cooldowns.tempCooldown === 0) {
+                newCoreTemp = Math.min(prev.coreTemp + intensityFactor * 0.015, 39.5);
+            } else {
+                newCoreTemp = Math.max(prev.coreTemp - 0.02, 37.0);
+            }
+
+            return {
+                ...prev,
+                heartRate: Math.round(newHR),
+                heartRateZone: zone,
+                sweatRate: newSweatRate,
+                coreTemp: newCoreTemp,
+                hydrationLevel: newHydration,
+                glycogenStores: newGlycogen
+            };
+        });
+
+        // Update cooldowns
+        setCooldowns(prev => ({
+            hydrationCooldown: Math.max(prev.hydrationCooldown - 1, 0),
+            energyCooldown: Math.max(prev.energyCooldown - 1, 0),
+            tempCooldown: Math.max(prev.tempCooldown - 1, 0)
+        }));
+    };
+
+    // FIXED generateRecommendations - preserve existing recommendations
+    const generateRecommendations = () => {
         setRecommendations(prevRecs => {
             const newRecs = [];
+            
+            // Keep all existing recommendations
+            const existingNonStatus = prevRecs.filter(r => r.type !== 'status');
 
             // Always show current status
             newRecs.push({
                 id: 'status',
                 type: 'status',
                 title: `${userProfile.name}'s AI Analysis`,
-                message: `Monitoring your ${exerciseType} session - ${Math.floor(duration/60)}:${(duration%60).toString().padStart(2,'0')} elapsed. Heart rate in ${biometrics.heartRateZone} zone.`,
+                message: `Monitoring your ${exerciseType} session - ${Math.floor(exerciseDuration/60)}:${(exerciseDuration%60).toString().padStart(2,'0')} elapsed. Heart rate in ${biometrics.heartRateZone} zone.`,
                 icon: Brain,
                 color: 'text-blue-500',
                 bgColor: 'bg-blue-50',
@@ -297,13 +302,18 @@ const BioSyncAdvanced = () => {
                 completed: false
             });
 
-            // Check for existing non-completed recommendations
-            const existingHydration = prevRecs.find(r => r.type === 'hydration' && !r.completed);
-            const existingEnergy = prevRecs.find(r => r.type === 'energy' && !r.completed);
-            const existingCooling = prevRecs.find(r => r.type === 'cooling' && !r.completed);
+            // Add existing recommendations back
+            existingNonStatus.forEach(rec => {
+                newRecs.push(rec);
+            });
 
-            // HYDRATION - Show again after 60 seconds if still low
-            if (!existingHydration && biometrics.hydrationLevel < 90 && (duration - lastAlerts.hydration) > 60) {
+            // Check if we need to add new recommendations
+            const hasActiveHydration = existingNonStatus.some(r => r.type === 'hydration' && !r.completed);
+            const hasActiveEnergy = existingNonStatus.some(r => r.type === 'energy' && !r.completed);
+            const hasActiveCooling = existingNonStatus.some(r => r.type === 'cooling' && !r.completed);
+
+            // HYDRATION - Only add if no active hydration recommendation
+            if (!hasActiveHydration && biometrics.hydrationLevel < 90 && (exerciseDuration - lastAlerts.hydration) > 60) {
                 const bodyWeight = parseFloat(userProfile.weight) || 70;
                 const waterNeeded = Math.round((100 - biometrics.hydrationLevel) * bodyWeight * 0.015);
                 
@@ -312,7 +322,7 @@ const BioSyncAdvanced = () => {
                 else if (biometrics.hydrationLevel < 80) urgency = 'Important: ';
                 
                 newRecs.push({
-                    id: `hydration_${duration}`,
+                    id: `hydration_${exerciseDuration}`,
                     type: 'hydration',
                     title: `${urgency}Hydration Alert`,
                     message: `${userProfile.name}, drink ${waterNeeded}ml water now. As a ${userProfile.activityLevel} athlete (${bodyWeight}kg), your body needs extra hydration during ${exerciseType}.`,
@@ -322,36 +332,36 @@ const BioSyncAdvanced = () => {
                     actionable: true,
                     completed: false
                 });
-                setLastAlerts(prev => ({ ...prev, hydration: duration }));
+                setLastAlerts(prev => ({ ...prev, hydration: exerciseDuration }));
             }
 
-            // ENERGY - Show again after 90 seconds if still low
-            if (!existingEnergy && biometrics.glycogenStores < 70 && (duration - lastAlerts.energy) > 90) {
+            // ENERGY - Only add if no active energy recommendation
+            if (!hasActiveEnergy && biometrics.glycogenStores < 70 && (exerciseDuration - lastAlerts.energy) > 90) {
                 const baseCarbs = userProfile.gender === 'female' ? 25 : 30;
                 const intensityMultiplier = {
                     running: 1.2, cycling: 1.0, swimming: 1.1, strength: 0.8, yoga: 0.5
-                }[exerciseType];
+                }[exerciseType] || 1.0;
                 const recommendedCarbs = Math.round(baseCarbs * intensityMultiplier);
                 
                 newRecs.push({
-                    id: `energy_${duration}`,
+                    id: `energy_${exerciseDuration}`,
                     type: 'energy',
                     title: `Energy Management for ${userProfile.gender.charAt(0).toUpperCase() + userProfile.gender.slice(1)} Athletes`,
-                    message: `${userProfile.name}, consume ${recommendedCarbs}g quick carbs (banana, sports drink). ${userProfile.gender === 'female' ? 'Women' : 'Men'} typically need this amount during ${exerciseType} sessions lasting ${Math.floor(duration/60)}+ minutes.`,
+                    message: `${userProfile.name}, consume ${recommendedCarbs}g quick carbs (banana, sports drink). ${userProfile.gender === 'female' ? 'Women' : 'Men'} typically need this amount during ${exerciseType} sessions lasting ${Math.floor(exerciseDuration/60)}+ minutes.`,
                     icon: Zap,
                     color: 'text-yellow-500',
                     bgColor: 'bg-yellow-50',
                     actionable: true,
                     completed: false
                 });
-                setLastAlerts(prev => ({ ...prev, energy: duration }));
+                setLastAlerts(prev => ({ ...prev, energy: exerciseDuration }));
             }
 
-            // TEMPERATURE - Show again after 120 seconds if still high
-            if (!existingCooling && biometrics.coreTemp > 38.0 && (duration - lastAlerts.temp) > 120) {
+            // TEMPERATURE - Only add if no active cooling recommendation
+            if (!hasActiveCooling && biometrics.coreTemp > 38.0 && (exerciseDuration - lastAlerts.temp) > 120) {
                 const ageWarning = userProfile.age > 50 ? ' Especially important at your age.' : '';
                 newRecs.push({
-                    id: `temp_${duration}`,
+                    id: `temp_${exerciseDuration}`,
                     type: 'cooling',
                     title: 'Temperature Safety Alert',
                     message: `${userProfile.name}, core temp elevated to ${biometrics.coreTemp.toFixed(1)}°C. Take a 2-minute cool-down break.${ageWarning}`,
@@ -361,11 +371,11 @@ const BioSyncAdvanced = () => {
                     actionable: true,
                     completed: false
                 });
-                setLastAlerts(prev => ({ ...prev, temp: duration }));
+                setLastAlerts(prev => ({ ...prev, temp: exerciseDuration }));
             }
 
             // Heart rate zone feedback
-            if (biometrics.heartRateZone === 'peak') {
+            if (biometrics.heartRateZone === 'peak' && !existingNonStatus.some(r => r.id === 'hr-peak')) {
                 const ageGroup = userProfile.age < 25 ? 'young athlete' : userProfile.age > 50 ? 'experienced athlete' : 'athlete';
                 newRecs.push({
                     id: 'hr-peak',
@@ -379,29 +389,15 @@ const BioSyncAdvanced = () => {
                     completed: false
                 });
             }
-
-            // Add back existing recommendations
-            prevRecs.forEach(rec => {
-                if (!newRecs.find(r => r.id === rec.id)) {
-                    newRecs.push(rec);
-                }
-            });
-
-            // Add completed recommendations
-            Object.values(completedRecommendations).forEach(rec => {
-                if (!newRecs.find(r => r.id === rec.id)) {
-                    newRecs.push(rec);
-                }
-            });
             
             return newRecs;
         });
-    }, [biometrics, userProfile, exerciseType, lastAlerts, completedRecommendations]);
+    };
 
-    const updateHistoricalData = useCallback((duration) => {
+    const updateHistoricalData = () => {
         setHistoricalData(prev => {
             const newEntry = {
-                time: duration,
+                time: exerciseDuration,
                 heartRate: biometrics.heartRate,
                 hydration: Math.round(biometrics.hydrationLevel),
                 glycogen: Math.round(biometrics.glycogenStores),
@@ -409,7 +405,7 @@ const BioSyncAdvanced = () => {
             };
             return [...prev.slice(-29), newEntry]; // Keep last 30 points
         });
-    }, [biometrics]);
+    };
 
     // Complete recommendation handler
     const completeRecommendation = (recId) => {
@@ -417,10 +413,6 @@ const BioSyncAdvanced = () => {
         if (!rec || !rec.actionable || rec.completed) return;
 
         // Mark as completed
-        const completedRec = { ...rec, completed: true };
-        setCompletedRecommendations(prev => ({ ...prev, [recId]: completedRec }));
-        
-        // Update recommendations
         setRecommendations(prev => prev.map(r => 
             r.id === recId ? { ...r, completed: true } : r
         ));
@@ -499,7 +491,7 @@ const BioSyncAdvanced = () => {
         }
     };
 
-const formatDuration = (seconds) => {
+    const formatDuration = (seconds) => {
         const minutes = Math.floor(seconds / 60);
         const secs = seconds % 60;
         return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
