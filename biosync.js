@@ -1,4 +1,4 @@
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useRef, useCallback } = React;
 
 // Icon components
 const Heart = ({ className = "" }) => <span className={className}>❤️</span>;
@@ -154,9 +154,9 @@ const BioSyncAdvanced = () => {
 
     const [recommendations, setRecommendations] = useState([]);
     const [completedRecommendations, setCompletedRecommendations] = useState({});
-    const [alerts, setAlerts] = useState([]);
     const [historicalData, setHistoricalData] = useState([]);
     const intervalRef = useRef(null);
+    const lastUpdateRef = useRef(0);
 
     // Calculate BMI and BMR when profile changes
     useEffect(() => {
@@ -184,19 +184,23 @@ const BioSyncAdvanced = () => {
         }
     }, [userProfile.weight, userProfile.height, userProfile.age, userProfile.gender]);
 
-    // FIXED Exercise timer - combined with updates
+    // FIXED Exercise timer - using ref to track time
     useEffect(() => {
         if (isExercising) {
             intervalRef.current = setInterval(() => {
+                const now = Date.now();
+                
+                // Update duration
                 setExerciseDuration(prev => {
                     const newDuration = prev + 1;
+                    
+                    // Update biometrics every second
+                    updateBiometrics(newDuration);
+                    generateRecommendations(newDuration);
+                    updateHistoricalData(newDuration);
+                    
                     return newDuration;
                 });
-                
-                // Call updates directly in the interval
-                updateBiometrics();
-                generateRecommendations();
-                updateHistoricalData();
             }, 1000);
         } else {
             if (intervalRef.current) {
@@ -204,15 +208,16 @@ const BioSyncAdvanced = () => {
                 intervalRef.current = null;
             }
         }
+        
         return () => {
             if (intervalRef.current) {
                 clearInterval(intervalRef.current);
             }
         };
-    }, [isExercising]);
+    }, [isExercising, exerciseType]);
 
-    // Enhanced updateBiometrics with cooldown system
-    const updateBiometrics = () => {
+    // Enhanced updateBiometrics with duration parameter
+    const updateBiometrics = useCallback((duration) => {
         setBiometrics(prev => {
             const intensityMultiplier = {
                 running: 2.2, cycling: 1.8, swimming: 2.0, strength: 1.5, yoga: 1.2
@@ -220,9 +225,7 @@ const BioSyncAdvanced = () => {
 
             const baseHR = userProfile.gender === 'male' ? 70 : 75;
             const maxHR = userProfile.maxHeartRate || 190;
-            // Use current exerciseDuration state
-            const currentDuration = exerciseDuration;
-            const targetHR = Math.min(baseHR + (currentDuration * intensityMultiplier * 0.3), maxHR * 0.85);
+            const targetHR = Math.min(baseHR + (duration * intensityMultiplier * 0.3), maxHR * 0.85);
             const newHR = prev.heartRate + (targetHR - prev.heartRate) * 0.1;
 
             const hrPercentage = ((newHR - baseHR) / (maxHR - baseHR)) * 100;
@@ -272,130 +275,131 @@ const BioSyncAdvanced = () => {
             energyCooldown: Math.max(prev.energyCooldown - 1, 0),
             tempCooldown: Math.max(prev.tempCooldown - 1, 0)
         }));
-    };
+    }, [exerciseType, userProfile, cooldowns]);
 
-    // Enhanced generateRecommendations with repeated alerts
-    const generateRecommendations = () => {
-        const recs = [];
-        const currentDuration = exerciseDuration;
+    // Enhanced generateRecommendations with duration parameter
+    const generateRecommendations = useCallback((duration) => {
+        setRecommendations(prevRecs => {
+            const newRecs = [];
 
-        // Always show current status
-        recs.push({
-            id: 'status',
-            type: 'status',
-            title: `${userProfile.name}'s AI Analysis`,
-            message: `Monitoring your ${exerciseType} session - ${Math.floor(currentDuration/60)}:${(currentDuration%60).toString().padStart(2,'0')} elapsed. Heart rate in ${biometrics.heartRateZone} zone.`,
-            icon: Brain,
-            color: 'text-blue-500',
-            bgColor: 'bg-blue-50',
-            actionable: false,
-            completed: false
-        });
-
-        // HYDRATION - Show again after 60 seconds if still low
-        if (biometrics.hydrationLevel < 90 && (currentDuration - lastAlerts.hydration) > 60) {
-            const bodyWeight = parseFloat(userProfile.weight) || 70;
-            const waterNeeded = Math.round((100 - biometrics.hydrationLevel) * bodyWeight * 0.015);
-            
-            let urgency = '';
-            if (biometrics.hydrationLevel < 70) urgency = 'URGENT: ';
-            else if (biometrics.hydrationLevel < 80) urgency = 'Important: ';
-            
-            recs.push({
-                id: `hydration_${currentDuration}`,
-                type: 'hydration',
-                title: `${urgency}Hydration Alert`,
-                message: `${userProfile.name}, drink ${waterNeeded}ml water now. As a ${userProfile.activityLevel} athlete (${bodyWeight}kg), your body needs extra hydration during ${exerciseType}.`,
-                icon: Droplets,
+            // Always show current status
+            newRecs.push({
+                id: 'status',
+                type: 'status',
+                title: `${userProfile.name}'s AI Analysis`,
+                message: `Monitoring your ${exerciseType} session - ${Math.floor(duration/60)}:${(duration%60).toString().padStart(2,'0')} elapsed. Heart rate in ${biometrics.heartRateZone} zone.`,
+                icon: Brain,
                 color: 'text-blue-500',
-                bgColor: biometrics.hydrationLevel < 70 ? 'bg-red-50' : 'bg-blue-50',
-                actionable: true,
-                completed: false
-            });
-            setLastAlerts(prev => ({ ...prev, hydration: currentDuration }));
-        }
-
-        // ENERGY - Show again after 90 seconds if still low
-        if (biometrics.glycogenStores < 70 && (currentDuration - lastAlerts.energy) > 90) {
-            const baseCarbs = userProfile.gender === 'female' ? 25 : 30;
-            const intensityMultiplier = {
-                running: 1.2, cycling: 1.0, swimming: 1.1, strength: 0.8, yoga: 0.5
-            }[exerciseType];
-            const recommendedCarbs = Math.round(baseCarbs * intensityMultiplier);
-            
-            recs.push({
-                id: `energy_${currentDuration}`,
-                type: 'energy',
-                title: `Energy Management for ${userProfile.gender.charAt(0).toUpperCase() + userProfile.gender.slice(1)} Athletes`,
-                message: `${userProfile.name}, consume ${recommendedCarbs}g quick carbs (banana, sports drink). ${userProfile.gender === 'female' ? 'Women' : 'Men'} typically need this amount during ${exerciseType} sessions lasting ${Math.floor(currentDuration/60)}+ minutes.`,
-                icon: Zap,
-                color: 'text-yellow-500',
-                bgColor: 'bg-yellow-50',
-                actionable: true,
-                completed: false
-            });
-            setLastAlerts(prev => ({ ...prev, energy: currentDuration }));
-        }
-
-        // TEMPERATURE - Show again after 120 seconds if still high
-        if (biometrics.coreTemp > 38.0 && (currentDuration - lastAlerts.temp) > 120) {
-            const ageWarning = userProfile.age > 50 ? ' Especially important at your age.' : '';
-            recs.push({
-                id: `temp_${currentDuration}`,
-                type: 'cooling',
-                title: 'Temperature Safety Alert',
-                message: `${userProfile.name}, core temp elevated to ${biometrics.coreTemp.toFixed(1)}°C. Take a 2-minute cool-down break.${ageWarning}`,
-                icon: Thermometer,
-                color: 'text-orange-500',
-                bgColor: 'bg-orange-50',
-                actionable: true,
-                completed: false
-            });
-            setLastAlerts(prev => ({ ...prev, temp: currentDuration }));
-        }
-
-        // Heart rate zone feedback
-        if (biometrics.heartRateZone === 'peak') {
-            const ageGroup = userProfile.age < 25 ? 'young athlete' : userProfile.age > 50 ? 'experienced athlete' : 'athlete';
-            recs.push({
-                id: 'hr-peak',
-                type: 'intensity',
-                title: `Peak Zone Alert for ${userProfile.age}-year-old`,
-                message: `${userProfile.name}, as a ${ageGroup}, reduce intensity to 70-85% max HR (${Math.round(userProfile.maxHeartRate * 0.7)}-${Math.round(userProfile.maxHeartRate * 0.85)} bpm) for optimal ${exerciseType} performance.`,
-                icon: Heart,
-                color: 'text-red-500',
-                bgColor: 'bg-red-50',
+                bgColor: 'bg-blue-50',
                 actionable: false,
                 completed: false
             });
-        } else if (biometrics.heartRateZone === 'cardio') {
-            recs.push({
-                id: 'hr-cardio',
-                type: 'performance',
-                title: 'Perfect Cardio Zone Achievement',
-                message: `Excellent! Your ${biometrics.heartRate} bpm is ideal for your age (${userProfile.age}). This zone maximizes fat burn and cardiovascular benefits for ${exerciseType}.`,
-                icon: Heart,
-                color: 'text-green-500',
-                bgColor: 'bg-green-50',
-                actionable: false,
-                completed: false
-            });
-        }
 
-        // Add back completed recommendations
-        Object.values(completedRecommendations).forEach(rec => {
-            if (!recs.find(r => r.id === rec.id)) {
-                recs.push(rec);
+            // Check for existing non-completed recommendations
+            const existingHydration = prevRecs.find(r => r.type === 'hydration' && !r.completed);
+            const existingEnergy = prevRecs.find(r => r.type === 'energy' && !r.completed);
+            const existingCooling = prevRecs.find(r => r.type === 'cooling' && !r.completed);
+
+            // HYDRATION - Show again after 60 seconds if still low
+            if (!existingHydration && biometrics.hydrationLevel < 90 && (duration - lastAlerts.hydration) > 60) {
+                const bodyWeight = parseFloat(userProfile.weight) || 70;
+                const waterNeeded = Math.round((100 - biometrics.hydrationLevel) * bodyWeight * 0.015);
+                
+                let urgency = '';
+                if (biometrics.hydrationLevel < 70) urgency = 'URGENT: ';
+                else if (biometrics.hydrationLevel < 80) urgency = 'Important: ';
+                
+                newRecs.push({
+                    id: `hydration_${duration}`,
+                    type: 'hydration',
+                    title: `${urgency}Hydration Alert`,
+                    message: `${userProfile.name}, drink ${waterNeeded}ml water now. As a ${userProfile.activityLevel} athlete (${bodyWeight}kg), your body needs extra hydration during ${exerciseType}.`,
+                    icon: Droplets,
+                    color: 'text-blue-500',
+                    bgColor: biometrics.hydrationLevel < 70 ? 'bg-red-50' : 'bg-blue-50',
+                    actionable: true,
+                    completed: false
+                });
+                setLastAlerts(prev => ({ ...prev, hydration: duration }));
             }
-        });
-        
-        setRecommendations(recs);
-    };
 
-    const updateHistoricalData = () => {
+            // ENERGY - Show again after 90 seconds if still low
+            if (!existingEnergy && biometrics.glycogenStores < 70 && (duration - lastAlerts.energy) > 90) {
+                const baseCarbs = userProfile.gender === 'female' ? 25 : 30;
+                const intensityMultiplier = {
+                    running: 1.2, cycling: 1.0, swimming: 1.1, strength: 0.8, yoga: 0.5
+                }[exerciseType];
+                const recommendedCarbs = Math.round(baseCarbs * intensityMultiplier);
+                
+                newRecs.push({
+                    id: `energy_${duration}`,
+                    type: 'energy',
+                    title: `Energy Management for ${userProfile.gender.charAt(0).toUpperCase() + userProfile.gender.slice(1)} Athletes`,
+                    message: `${userProfile.name}, consume ${recommendedCarbs}g quick carbs (banana, sports drink). ${userProfile.gender === 'female' ? 'Women' : 'Men'} typically need this amount during ${exerciseType} sessions lasting ${Math.floor(duration/60)}+ minutes.`,
+                    icon: Zap,
+                    color: 'text-yellow-500',
+                    bgColor: 'bg-yellow-50',
+                    actionable: true,
+                    completed: false
+                });
+                setLastAlerts(prev => ({ ...prev, energy: duration }));
+            }
+
+            // TEMPERATURE - Show again after 120 seconds if still high
+            if (!existingCooling && biometrics.coreTemp > 38.0 && (duration - lastAlerts.temp) > 120) {
+                const ageWarning = userProfile.age > 50 ? ' Especially important at your age.' : '';
+                newRecs.push({
+                    id: `temp_${duration}`,
+                    type: 'cooling',
+                    title: 'Temperature Safety Alert',
+                    message: `${userProfile.name}, core temp elevated to ${biometrics.coreTemp.toFixed(1)}°C. Take a 2-minute cool-down break.${ageWarning}`,
+                    icon: Thermometer,
+                    color: 'text-orange-500',
+                    bgColor: 'bg-orange-50',
+                    actionable: true,
+                    completed: false
+                });
+                setLastAlerts(prev => ({ ...prev, temp: duration }));
+            }
+
+            // Heart rate zone feedback
+            if (biometrics.heartRateZone === 'peak') {
+                const ageGroup = userProfile.age < 25 ? 'young athlete' : userProfile.age > 50 ? 'experienced athlete' : 'athlete';
+                newRecs.push({
+                    id: 'hr-peak',
+                    type: 'intensity',
+                    title: `Peak Zone Alert for ${userProfile.age}-year-old`,
+                    message: `${userProfile.name}, as a ${ageGroup}, reduce intensity to 70-85% max HR (${Math.round(userProfile.maxHeartRate * 0.7)}-${Math.round(userProfile.maxHeartRate * 0.85)} bpm) for optimal ${exerciseType} performance.`,
+                    icon: Heart,
+                    color: 'text-red-500',
+                    bgColor: 'bg-red-50',
+                    actionable: false,
+                    completed: false
+                });
+            }
+
+            // Add back existing recommendations
+            prevRecs.forEach(rec => {
+                if (!newRecs.find(r => r.id === rec.id)) {
+                    newRecs.push(rec);
+                }
+            });
+
+            // Add completed recommendations
+            Object.values(completedRecommendations).forEach(rec => {
+                if (!newRecs.find(r => r.id === rec.id)) {
+                    newRecs.push(rec);
+                }
+            });
+            
+            return newRecs;
+        });
+    }, [biometrics, userProfile, exerciseType, lastAlerts, completedRecommendations]);
+
+    const updateHistoricalData = useCallback((duration) => {
         setHistoricalData(prev => {
             const newEntry = {
-                time: exerciseDuration,
+                time: duration,
                 heartRate: biometrics.heartRate,
                 hydration: Math.round(biometrics.hydrationLevel),
                 glycogen: Math.round(biometrics.glycogenStores),
@@ -403,7 +407,7 @@ const BioSyncAdvanced = () => {
             };
             return [...prev.slice(-29), newEntry]; // Keep last 30 points
         });
-    };
+    }, [biometrics]);
 
     // Complete recommendation handler
     const completeRecommendation = (recId) => {
@@ -1094,9 +1098,6 @@ const BioSyncAdvanced = () => {
                                 </span>
                             </div>
                             {userProfile.medicalConditions.length > 0 && userProfile.medicalConditions[0] !== 'None' && (
-                                <div className="flex justify-between p-2 bg-yellow-50 rounded">
-                                    <span className="text-gray-600">
-                                    {userProfile.medicalConditions.length > 0 && userProfile.medicalConditions[0] !== 'None' && (
                                 <div className="flex justify-between p-2 bg-yellow-50 rounded">
                                     <span className="text-gray-600">⚠️ Conditions:</span>
                                     <span className="font-semibold text-sm text-red-600">
