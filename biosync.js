@@ -184,99 +184,103 @@ const BioSyncAdvanced = () => {
         }
     }, [userProfile.weight, userProfile.height, userProfile.age, userProfile.gender]);
 
-    // FIXED Exercise timer - Force component re-render
+   // FIXED Exercise timer - Simple approach that forces re-render
     useEffect(() => {
+        let interval = null;
+        
         if (isExercising) {
-            intervalRef.current = setInterval(() => {
-                setExerciseDuration(prev => prev + 1);
+            interval = setInterval(() => {
+                setExerciseDuration(prevDuration => prevDuration + 1);
             }, 1000);
-        } else {
-            if (intervalRef.current) {
-                clearInterval(intervalRef.current);
-                intervalRef.current = null;
-            }
+        } else if (!isExercising && exerciseDuration !== 0) {
+            setExerciseDuration(0);
         }
         
         return () => {
-            if (intervalRef.current) {
-                clearInterval(intervalRef.current);
-            }
+            if (interval) clearInterval(interval);
         };
     }, [isExercising]);
 
-    // Separate effect for updates when duration changes
+    // Update other metrics when duration changes
     useEffect(() => {
         if (isExercising && exerciseDuration > 0) {
-            updateBiometrics(exerciseDuration);
+            // Update all biometrics
+            setBiometrics(prev => {
+                const intensityMultiplier = {
+                    running: 2.2, cycling: 1.8, swimming: 2.0, strength: 1.5, yoga: 1.2
+                }[exerciseType] || 1.5;
+
+                const baseHR = userProfile.gender === 'male' ? 70 : 75;
+                const maxHR = userProfile.maxHeartRate || 190;
+                const targetHR = Math.min(baseHR + (exerciseDuration * intensityMultiplier * 0.3), maxHR * 0.85);
+                const newHR = prev.heartRate + (targetHR - prev.heartRate) * 0.1;
+
+                const hrPercentage = ((newHR - baseHR) / (maxHR - baseHR)) * 100;
+                let zone = 'rest';
+                if (hrPercentage > 80) zone = 'peak';
+                else if (hrPercentage > 70) zone = 'cardio';
+                else if (hrPercentage > 60) zone = 'aerobic';
+                else if (hrPercentage > 50) zone = 'fat-burn';
+                else if (hrPercentage > 0) zone = 'warm-up';
+
+                const intensityFactor = Math.max(hrPercentage / 100, 0);
+                const bodyWeightFactor = (parseFloat(userProfile.weight) || 70) / 70;
+                const newSweatRate = 0.5 * intensityFactor * bodyWeightFactor;
+                
+                let newHydration = prev.hydrationLevel;
+                if (cooldowns.hydrationCooldown === 0) {
+                    newHydration = Math.max(prev.hydrationLevel - (newSweatRate * 0.5), 0);
+                }
+                
+                let newGlycogen = prev.glycogenStores;
+                if (cooldowns.energyCooldown === 0) {
+                    newGlycogen = Math.max(prev.glycogenStores - (intensityFactor * 0.3), 0);
+                }
+                
+                let newCoreTemp = prev.coreTemp;
+                if (cooldowns.tempCooldown === 0) {
+                    newCoreTemp = Math.min(prev.coreTemp + intensityFactor * 0.015, 39.5);
+                } else {
+                    newCoreTemp = Math.max(prev.coreTemp - 0.02, 37.0);
+                }
+
+                return {
+                    ...prev,
+                    heartRate: Math.round(newHR),
+                    heartRateZone: zone,
+                    sweatRate: newSweatRate,
+                    coreTemp: newCoreTemp,
+                    hydrationLevel: newHydration,
+                    glycogenStores: newGlycogen
+                };
+            });
+
+            // Update cooldowns
+            setCooldowns(prev => ({
+                hydrationCooldown: Math.max(prev.hydrationCooldown - 1, 0),
+                energyCooldown: Math.max(prev.energyCooldown - 1, 0),
+                tempCooldown: Math.max(prev.tempCooldown - 1, 0)
+            }));
+
+            // Update historical data
+            setHistoricalData(prev => {
+                const newEntry = {
+                    time: exerciseDuration,
+                    heartRate: biometrics.heartRate,
+                    hydration: Math.round(biometrics.hydrationLevel),
+                    glycogen: Math.round(biometrics.glycogenStores),
+                    fatigue: Math.round(biometrics.fatigue || 0)
+                };
+                return [...prev.slice(-29), newEntry];
+            });
+
+            // Generate recommendations
             generateRecommendations(exerciseDuration);
-            updateHistoricalData(exerciseDuration);
         }
-    }, [exerciseDuration, isExercising]);
-
-    
-    // Enhanced updateBiometrics with duration parameter
-    const updateBiometrics = useCallback((duration) => {
-        setBiometrics(prev => {
-            const intensityMultiplier = {
-                running: 2.2, cycling: 1.8, swimming: 2.0, strength: 1.5, yoga: 1.2
-            }[exerciseType] || 1.5;
-
-            const baseHR = userProfile.gender === 'male' ? 70 : 75;
-            const maxHR = userProfile.maxHeartRate || 190;
-            const targetHR = Math.min(baseHR + (duration * intensityMultiplier * 0.3), maxHR * 0.85);
-            const newHR = prev.heartRate + (targetHR - prev.heartRate) * 0.1;
-
-            const hrPercentage = ((newHR - baseHR) / (maxHR - baseHR)) * 100;
-            let zone = 'rest';
-            if (hrPercentage > 80) zone = 'peak';
-            else if (hrPercentage > 70) zone = 'cardio';
-            else if (hrPercentage > 60) zone = 'aerobic';
-            else if (hrPercentage > 50) zone = 'fat-burn';
-            else if (hrPercentage > 0) zone = 'warm-up';
-
-            const intensityFactor = Math.max(hrPercentage / 100, 0);
-            const bodyWeightFactor = (parseFloat(userProfile.weight) || 70) / 70;
-            const newSweatRate = 0.5 * intensityFactor * bodyWeightFactor;
-            
-            // Only decrease if not in cooldown
-            let newHydration = prev.hydrationLevel;
-            if (cooldowns.hydrationCooldown === 0) {
-                newHydration = Math.max(prev.hydrationLevel - (newSweatRate * 0.5), 0);
-            }
-            
-            let newGlycogen = prev.glycogenStores;
-            if (cooldowns.energyCooldown === 0) {
-                newGlycogen = Math.max(prev.glycogenStores - (intensityFactor * 0.3), 0);
-            }
-            
-            let newCoreTemp = prev.coreTemp;
-            if (cooldowns.tempCooldown === 0) {
-                newCoreTemp = Math.min(prev.coreTemp + intensityFactor * 0.015, 39.5);
-            } else {
-                newCoreTemp = Math.max(prev.coreTemp - 0.02, 37.0);
-            }
-
-            return {
-                ...prev,
-                heartRate: Math.round(newHR),
-                heartRateZone: zone,
-                sweatRate: newSweatRate,
-                coreTemp: newCoreTemp,
-                hydrationLevel: newHydration,
-                glycogenStores: newGlycogen
-            };
-        });
-
-        // Update cooldowns
-        setCooldowns(prev => ({
-            hydrationCooldown: Math.max(prev.hydrationCooldown - 1, 0),
-            energyCooldown: Math.max(prev.energyCooldown - 1, 0),
-            tempCooldown: Math.max(prev.tempCooldown - 1, 0)
-        }));
-    }, [exerciseType, userProfile, cooldowns]);
+    }, [exerciseDuration, isExercising, exerciseType, userProfile, cooldowns, biometrics]);
 
     // Enhanced generateRecommendations with duration parameter
-    const generateRecommendations = useCallback((duration) => {
+    const generateRecommendations = (duration) => {
         setRecommendations(prevRecs => {
             const newRecs = [];
 
