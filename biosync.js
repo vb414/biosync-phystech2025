@@ -184,23 +184,11 @@ const BioSyncAdvanced = () => {
         }
     }, [userProfile.weight, userProfile.height, userProfile.age, userProfile.gender]);
 
-    // FIXED Exercise timer - using ref to track time
+    // FIXED Exercise timer - Force component re-render
     useEffect(() => {
         if (isExercising) {
             intervalRef.current = setInterval(() => {
-                const now = Date.now();
-                
-                // Update duration
-                setExerciseDuration(prev => {
-                    const newDuration = prev + 1;
-                    
-                    // Update biometrics every second
-                    updateBiometrics(newDuration);
-                    generateRecommendations(newDuration);
-                    updateHistoricalData(newDuration);
-                    
-                    return newDuration;
-                });
+                setExerciseDuration(prev => prev + 1);
             }, 1000);
         } else {
             if (intervalRef.current) {
@@ -214,8 +202,18 @@ const BioSyncAdvanced = () => {
                 clearInterval(intervalRef.current);
             }
         };
-    }, [isExercising, exerciseType]);
+    }, [isExercising]);
 
+    // Separate effect for updates when duration changes
+    useEffect(() => {
+        if (isExercising && exerciseDuration > 0) {
+            updateBiometrics(exerciseDuration);
+            generateRecommendations(exerciseDuration);
+            updateHistoricalData(exerciseDuration);
+        }
+    }, [exerciseDuration, isExercising]);
+
+    
     // Enhanced updateBiometrics with duration parameter
     const updateBiometrics = useCallback((duration) => {
         setBiometrics(prev => {
