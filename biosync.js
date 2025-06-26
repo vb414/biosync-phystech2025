@@ -1030,7 +1030,7 @@ const BioSyncAdvanced = () => {
                         </h3>
                         <SimpleChart data={historicalData} />
                         {isExercising && historicalData.length > 0 && (
-                            <div className="mt-4 grid grid-cols-4 gap-4 text-center">
+                            <div className="mt-4 grid grid-cols-3 gap-4 text-center">
                                 <div className="bg-red-50 p-3 rounded-lg">
                                     <p className="text-sm text-gray-600">Avg Heart Rate</p>
                                     <p className="text-lg font-semibold text-red-600">
@@ -1047,12 +1047,6 @@ const BioSyncAdvanced = () => {
                                     <p className="text-sm text-gray-600">Avg Hydration</p>
                                     <p className="text-lg font-semibold text-blue-600">
                                         {Math.round(historicalData.reduce((sum, d) => sum + d.hydration, 0) / historicalData.length)}%
-                                    </p>
-                                </div>
-                                <div className="bg-purple-50 p-3 rounded-lg">
-                                    <p className="text-sm text-gray-600">Sweat Loss</p>
-                                    <p className="text-lg font-semibold text-purple-600">
-                                        {(biometrics.sweatRate * exerciseDuration / 3600).toFixed(1)}L
                                     </p>
                                 </div>
                             </div>
