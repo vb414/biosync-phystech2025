@@ -1035,7 +1035,7 @@
             if (!container || !isExercising || historicalData.length === 0) return;
             
             container.innerHTML = `
-                <div class="grid grid-cols-4 gap-4 text-center">
+                <div class="grid grid-cols-3 gap-4 text-center">
                     <div class="bg-red-50 p-3 rounded-lg">
                         <p class="text-sm text-gray-600">Avg Heart Rate</p>
                         <p class="text-lg font-bold text-red-600">
@@ -1052,12 +1052,6 @@
                         <p class="text-sm text-gray-600">Avg Hydration</p>
                         <p class="text-lg font-bold text-blue-600">
                             ${Math.round(historicalData.reduce((sum, d) => sum + d.hydration, 0) / historicalData.length)}%
-                        </p>
-                    </div>
-                    <div class="bg-purple-50 p-3 rounded-lg">
-                        <p class="text-sm text-gray-600">Duration</p>
-                        <p class="text-lg font-bold text-purple-600">
-                            ${Math.floor(exerciseDuration / 60)}:${(exerciseDuration % 60).toString().padStart(2, '0')}
                         </p>
                     </div>
                 </div>
