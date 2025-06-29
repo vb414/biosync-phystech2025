@@ -34,7 +34,7 @@
     </div>
     
     <script>
-        // Global variables with enhanced biometrics
+        
         let currentStep = 'welcome';
         let userProfile = {
             name: '',
@@ -54,7 +54,7 @@
         let exerciseDuration = 0;
         let exerciseInterval = null;
         
-        // Enhanced biometrics with cooldown tracking
+        
         let biometrics = {
             heartRate: 72,
             heartRateZone: 'rest',
@@ -76,7 +76,7 @@
         let completedRecommendations = {}; // Track completed recommendations
         let activeRecommendations = {}; // Track active recommendations to prevent duplicates
 
-        // Helper functions
+        
         function calculateBMI() {
             if (userProfile.weight && userProfile.height) {
                 const height = parseFloat(userProfile.height) / 100;
@@ -97,7 +97,7 @@
             }
         }
         
-        // Enhanced updateBiometrics with cooldown system
+       
         function updateBiometrics() {
             const intensity = { running: 2.0, cycling: 1.5, swimming: 1.8, strength: 1.2, yoga: 0.8 };
             const exerciseType = document.getElementById('exerciseType') ? document.getElementById('exerciseType').value : 'running';
@@ -117,7 +117,7 @@
             else if (hrPercent > 0) biometrics.heartRateZone = 'warm-up';
             else biometrics.heartRateZone = 'rest';
             
-            // Decrease cooldowns
+            
             if (biometrics.hydrationCooldown > 0) {
                 biometrics.hydrationCooldown--;
             }
@@ -140,7 +140,7 @@
                 biometrics.glycogenStores = Math.max(biometrics.glycogenStores - energyBurn, 0);
             }
             
-            // Temperature always increases unless in cooldown
+            
             if (biometrics.tempCooldown === 0) {
                 biometrics.coreTemp = Math.min(biometrics.coreTemp + 0.01, 39.5);
             } else {
@@ -148,7 +148,7 @@
                 biometrics.coreTemp = Math.max(biometrics.coreTemp - 0.02, 37.0);
             }
             
-            // Update historical data
+            
             historicalData.push({
                 time: exerciseDuration,
                 heartRate: biometrics.heartRate,
@@ -160,11 +160,11 @@
             updateRecommendations();
         }
 
-        // FIXED updateRecommendations - preserve existing recommendations
+        
         function updateRecommendations() {
             const exerciseType = document.getElementById('exerciseType') ? document.getElementById('exerciseType').value : 'running';
             
-            // Start with status recommendation
+            
             const newRecommendations = [{
                 id: 'status',
                 type: 'status',
@@ -188,7 +188,7 @@
             });
 
             // Check for new recommendations
-            // HYDRATION - Only add if no active hydration recommendation
+            
             if (!activeRecommendations.hydration && biometrics.hydrationLevel < 90 && (exerciseDuration - biometrics.lastHydrationAlert) > 60) {
                 const bodyWeight = parseFloat(userProfile.weight) || 70;
                 const waterNeeded = Math.round((100 - biometrics.hydrationLevel) * bodyWeight * 0.015);
@@ -260,7 +260,7 @@
                 biometrics.lastTempAlert = exerciseDuration;
             }
 
-            // Heart rate recommendations (non-actionable)
+            // Heart rate recommendations 
             if (biometrics.heartRateZone === 'peak' && !activeRecommendations.hrPeak) {
                 const ageGroup = userProfile.age < 25 ? 'young athlete' : userProfile.age > 50 ? 'experienced athlete' : 'athlete';
                 const hrRec = {
@@ -281,7 +281,7 @@
             recommendations = newRecommendations;
         }
 
-        // Enhanced notification function
+        
         function showNotification(message) {
             const notification = document.createElement('div');
             notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 notification';
@@ -298,7 +298,7 @@
             }, 3000);
         }
 
-        // FIXED complete recommendation function
+        
         function completeRecommendation(recId) {
             const rec = recommendations.find(r => r.id === recId);
             if (!rec || !rec.actionable) return;
@@ -332,7 +332,7 @@
             updateDynamicElements();
         }
 
-        // Screen rendering functions
+        
         function showWelcome() {
             currentStep = 'welcome';
             document.getElementById('root').innerHTML = `
@@ -468,7 +468,7 @@
                 </div>
             `;
             
-            // Add event listeners for real-time calculation
+            
             setTimeout(() => {
                 ['userName', 'userAge', 'userWeight', 'userHeight'].forEach(id => {
                     const element = document.getElementById(id);
@@ -642,12 +642,12 @@
             if (file) {
                 medicalReport = file;
                 
-                // Show upload status
+                
                 document.getElementById('uploadStatus').style.display = 'block';
                 document.getElementById('fileName').textContent = file.name;
                 document.getElementById('continueText').textContent = 'Start BioSync';
                 
-                // Simulate analysis after 2 seconds
+                
                 setTimeout(() => {
                     reportAnalysis = {
                         glucose: Math.random() > 0.7 ? 'normal' : 'low',
@@ -823,11 +823,11 @@
                 </div>
             `;
             
-            // Initial update of dynamic elements
+            
             updateDynamicElements();
         }
 
-        // Function to update only the dynamic parts
+        
         function updateDynamicElements() {
             // Update timer display - FIXED
             const timerEl = document.getElementById('timerDisplay');
@@ -835,7 +835,7 @@
                 timerEl.textContent = `${Math.floor(exerciseDuration / 60)}:${(exerciseDuration % 60).toString().padStart(2, '0')}`;
             }
             
-            // Update biometric displays
+            
             const heartRateEl = document.getElementById('heartRateDisplay');
             if (heartRateEl) heartRateEl.textContent = biometrics.heartRate;
             
@@ -893,17 +893,17 @@
                 }
             }
             
-            // Update recommendations
+           
             updateRecommendationsDisplay();
             
-            // Update performance chart
+            
             updatePerformanceChart();
             
-            // Update stats
+            
             updateStatsDisplay();
         }
 
-        // Function to update recommendations display
+        
         function updateRecommendationsDisplay() {
             const container = document.getElementById('recommendationsContainer');
             if (!container) return;
@@ -930,7 +930,7 @@
                 `;
             }
             
-            // Add medical recommendations if available
+            
             if (reportAnalysis && reportAnalysis.recommendations) {
                 container.innerHTML += `
                     <div class="mt-4 pt-4 border-t">
@@ -948,7 +948,7 @@
             }
         }
 
-        // Function to update performance chart using SVG
+    
         function updatePerformanceChart() {
             const svg = document.getElementById('performanceChart');
             if (!svg || historicalData.length === 0) return;
@@ -959,10 +959,10 @@
             const chartWidth = width - (padding * 2);
             const chartHeight = height - (padding * 2);
             
-            // Clear existing chart
+            
             svg.innerHTML = '';
             
-            // Create gradient definitions
+            
             svg.innerHTML += `
                 <defs>
                     <linearGradient id="heartRateGradient" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -976,47 +976,47 @@
                 </defs>
             `;
             
-            // Calculate scales
+            
             const maxHR = Math.max(...historicalData.map(d => d.heartRate), 200);
             const minHR = Math.min(...historicalData.map(d => d.heartRate), 60);
             const hrRange = maxHR - minHR || 1;
             
-            // Create paths for heart rate line
+            
             const hrPathData = historicalData.map((data, i) => {
                 const x = padding + (i / (historicalData.length - 1 || 1)) * chartWidth;
                 const y = padding + (1 - (data.heartRate - minHR) / hrRange) * chartHeight;
                 return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
             }).join(' ');
             
-            // Create path for hydration line
+            
             const hydrationPathData = historicalData.map((data, i) => {
                 const x = padding + (i / (historicalData.length - 1 || 1)) * chartWidth;
                 const y = padding + (1 - data.hydration / 100) * chartHeight;
                 return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
             }).join(' ');
             
-            // Add area fills
+            
             const hrAreaPath = hrPathData + ` L ${padding + chartWidth} ${padding + chartHeight} L ${padding} ${padding + chartHeight} Z`;
             svg.innerHTML += `<path d="${hrAreaPath}" fill="url(#heartRateGradient)" opacity="0.3" />`;
             
-            // Add lines
+            
             svg.innerHTML += `<path d="${hrPathData}" fill="none" stroke="#dc2626" stroke-width="3" />`;
             svg.innerHTML += `<path d="${hydrationPathData}" fill="none" stroke="#3b82f6" stroke-width="2" stroke-dasharray="5,5" />`;
             
-            // Add dots for each data point
+            
             historicalData.forEach((data, i) => {
                 const x = padding + (i / (historicalData.length - 1 || 1)) * chartWidth;
                 const hrY = padding + (1 - (data.heartRate - minHR) / hrRange) * chartHeight;
                 const hydrationY = padding + (1 - data.hydration / 100) * chartHeight;
                 
-                // Heart rate dot
+                
                 svg.innerHTML += `
                     <circle cx="${x}" cy="${hrY}" r="4" fill="#dc2626" stroke="white" stroke-width="2">
                         <title>Time: ${data.time}s | HR: ${data.heartRate} | Hydration: ${Math.round(data.hydration)}%</title>
                     </circle>
                 `;
                 
-                // Hydration dot (smaller)
+                
                 svg.innerHTML += `
                     <circle cx="${x}" cy="${hydrationY}" r="3" fill="#3b82f6" stroke="white" stroke-width="2">
                         <title>Hydration: ${Math.round(data.hydration)}%</title>
@@ -1024,7 +1024,7 @@
                 `;
             });
             
-            // Add axis labels
+            
             svg.innerHTML += `
                 <text x="${padding}" y="${height - 5}" font-size="12" fill="#666">0s</text>
                 <text x="${width - padding}" y="${height - 5}" font-size="12" fill="#666" text-anchor="end">${exerciseDuration}s</text>
@@ -1033,7 +1033,7 @@
             `;
         }
 
-        // Function to update stats display
+        
         function updateStatsDisplay() {
             const container = document.getElementById('statsContainer');
             if (!container || !isExercising || historicalData.length === 0) return;
@@ -1062,7 +1062,7 @@
             `;
         }
 
-        // FIXED Toggle exercise function
+        
         function toggleExercise() {
             if (!isExercising) {
                 // Start exercise
@@ -1073,7 +1073,7 @@
                 completedRecommendations = {};
                 activeRecommendations = {};
                 
-                // Reset alert timings
+                
                 biometrics.lastHydrationAlert = 0;
                 biometrics.lastEnergyAlert = 0;
                 biometrics.lastTempAlert = 0;
@@ -1086,14 +1086,14 @@
                 
                 renderDashboard();
             } else {
-                // Stop exercise
+                
                 isExercising = false;
                 if (exerciseInterval) {
                     clearInterval(exerciseInterval);
                     exerciseInterval = null;
                 }
                 
-                // Reset biometrics
+                
                 biometrics = {
                     heartRate: 72,
                     heartRateZone: 'rest',
