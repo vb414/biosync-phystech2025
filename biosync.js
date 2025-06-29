@@ -601,10 +601,6 @@ const BioSyncAdvanced = () => {
                             {isLogin ? 'Sign Up' : 'Sign In'}
                         </button>
                     </p>
-                    
-                    <div className="mt-6 text-center">
-                        <p className="text-white/50 text-xs">For demo: Use any email/password</p>
-                    </div>
                 </div>
             </div>
         );
