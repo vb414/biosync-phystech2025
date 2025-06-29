@@ -184,7 +184,7 @@ const BioSyncAdvanced = () => {
         }
     }, [userProfile.weight, userProfile.height, userProfile.age, userProfile.gender]);
 
-    // FIXED Exercise timer with force update
+    // Exercise timer with force update
     useEffect(() => {
         if (isExercising) {
             intervalRef.current = setInterval(() => {
@@ -213,14 +213,14 @@ const BioSyncAdvanced = () => {
         }
     }, [exerciseDuration, isExercising]);
 
-    // Update recommendations separately to prevent them from disappearing
+    // Update recommendations separately 
     useEffect(() => {
         if (isExercising) {
             generateRecommendations();
         }
     }, [exerciseDuration, biometrics, isExercising]);
 
-    // Enhanced updateBiometrics function
+    
     const updateBiometrics = () => {
         setBiometrics(prev => {
             const intensityMultiplier = {
@@ -281,7 +281,7 @@ const BioSyncAdvanced = () => {
         }));
     };
 
-    // FIXED generateRecommendations - preserve existing recommendations
+    
     const generateRecommendations = () => {
         setRecommendations(prevRecs => {
             const newRecs = [];
@@ -289,7 +289,7 @@ const BioSyncAdvanced = () => {
             // Keep all existing recommendations
             const existingNonStatus = prevRecs.filter(r => r.type !== 'status');
 
-            // Always show current status
+            
             newRecs.push({
                 id: 'status',
                 type: 'status',
@@ -509,7 +509,7 @@ const BioSyncAdvanced = () => {
         return colors[zone] || 'bg-gray-100 text-gray-600';
     };
 
-    // Fixed toggle exercise function
+    
     const toggleExercise = () => {
         if (!isExercising) {
             setIsExercising(true);
@@ -1100,7 +1100,7 @@ const BioSyncAdvanced = () => {
     );
 };
 
-// Add CSS for animations
+
 const style = document.createElement('style');
 style.textContent = `
     @keyframes grow {
@@ -1124,6 +1124,6 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-// Render the app
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<BioSyncAdvanced />);
