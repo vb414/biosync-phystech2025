@@ -1,4 +1,4 @@
-const { useState, useEffect, useRef } = React;More actions
+const { useState, useEffect, useRef } = React;
 
 // Icon components
 const Heart = ({ className = "" }) => <span className={className}>❤️</span>;
