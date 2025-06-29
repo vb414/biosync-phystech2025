@@ -540,67 +540,27 @@ const BioSyncAdvanced = () => {
         }
     };
 
-    
+    // WELCOME SCREEN
     if (currentStep === 'welcome') {
-        const [isLogin, setIsLogin] = useState(true);
-        const [email, setEmail] = useState('');
-        const [password, setPassword] = useState('');
-
-        const handleAuth = (e) => {
-            e.preventDefault();
-            // For demo purposes, any email/password works
-            if (email && password) {
-                setCurrentStep('profile');
-            }
-        };
-
         return (
             <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 flex items-center justify-center">
-                <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 max-w-md mx-4 border border-white/20">
+                <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 max-w-2xl mx-4 border border-white/20">
                     <Brain className="text-6xl mx-auto mb-6 block" />
-                    <h1 className="text-3xl font-bold text-white mb-2 text-center">BioSync</h1>
-                    <p className="text-white/70 text-center mb-6">AI-Powered Health Optimization</p>
-                    
-                    <form onSubmit={handleAuth} className="space-y-4">
-                        <h2 className="text-2xl font-semibold text-white text-center mb-4">
-                            {isLogin ? 'Welcome Back' : 'Create Account'}
-                        </h2>
-                        
-                        <input
-                            type="email"
-                            placeholder="Email"
-                            className="w-full px-4 py-3 rounded-lg bg-white/20 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            required
-                        />
-                        
-                        <input
-                            type="password"
-                            placeholder="Password"
-                            className="w-full px-4 py-3 rounded-lg bg-white/20 border border-white/30 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            required
-                        />
-                        
-                        <button
-                            type="submit"
-                            className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold py-3 rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all"
-                        >
-                            {isLogin ? 'Sign In' : 'Sign Up'}
-                        </button>
-                    </form>
-                    
-                    <p className="text-white/70 text-center mt-6 text-sm">
-                        {isLogin ? "Don't have an account? " : "Already have an account? "}
-                        <button
-                            onClick={() => setIsLogin(!isLogin)}
-                            className="text-white font-semibold hover:underline"
-                        >
-                            {isLogin ? 'Sign Up' : 'Sign In'}
-                        </button>
+                    <h1 className="text-4xl font-bold text-white mb-4 text-center">Welcome to BioSync</h1>
+                    <p className="text-white/80 text-lg mb-8 text-center">
+                        AI-powered nutrition optimization that adapts to your unique physiology. 
+                        Let's personalize your experience with your health data.
                     </p>
+                    <div className="flex items-center justify-center space-x-4 mb-8">
+                        <Shield className="text-3xl" />
+                        <p className="text-white/70 text-sm">Your data is secure and never shared</p>
+                    </div>
+                    <button
+                        onClick={() => setCurrentStep('profile')}
+                        className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold py-4 rounded-xl hover:from-blue-600 hover:to-purple-600 transition-all"
+                    >
+                        Get Started
+                    </button>
                 </div>
             </div>
         );
